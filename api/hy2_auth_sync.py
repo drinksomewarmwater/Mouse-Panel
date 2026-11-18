@@ -36,6 +36,24 @@ def run(cmd, timeout=30):
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 
+def restart_hysteria():
+    """Restart hysteria-server, tolerating systemd's start rate limit.
+    Restarts in quick succession can hit StartLimitBurst and leave the
+    service in 'failed (start-limit-hit)'. Clearing the failed state
+    before restarting, and retrying once after a pause, avoids that."""
+    run("systemctl reset-failed hysteria-server")
+    run("systemctl restart hysteria-server")
+    time.sleep(2)
+    if run("systemctl is-active hysteria-server")[1] == "active":
+        return
+    time.sleep(5)
+    run("systemctl reset-failed hysteria-server")
+    run("systemctl start hysteria-server")
+    time.sleep(2)
+    if run("systemctl is-active hysteria-server")[1] != "active":
+        raise RuntimeError("hysteria-server not active after restart")
+
+
 def listen_port(text):
     m = re.search(r"^listen:\s*:(\d+)(?:-\d+)?", text, re.M)
     return int(m.group(1)) if m else None
@@ -121,11 +139,7 @@ def main():
         run("cp %s %s.bak-sync" % (CFG, CFG))
         with open(CFG, "w") as f:
             f.write(new_text)
-        run("systemctl restart hysteria-server")
-        time.sleep(2)
-        rc, out, _ = run("systemctl is-active hysteria-server")
-        if out != "active":
-            raise RuntimeError("hysteria-server not active after restart")
+        restart_hysteria()
         if port:
             rc, _, _ = run("ss -lun | grep -q ':%d '" % port)
             if rc != 0:
@@ -135,7 +149,10 @@ def main():
     except Exception as e:
         # Roll back and restart so the node keeps working.
         run("cp %s.bak-sync %s" % (CFG, CFG))
-        run("systemctl restart hysteria-server")
+        try:
+            restart_hysteria()
+        except Exception:
+            pass
         print(json.dumps({"ok": False, "error": str(e)}))
         return 1
 
