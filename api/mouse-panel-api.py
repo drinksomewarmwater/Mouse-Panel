@@ -1353,35 +1353,43 @@ def rotate_vless():
 
 
 def rotate_admin_hy2():
-    """Rotate the admin's unified HY2 password AND every set-up user's HY2
-    password, then disable all non-admin users (reason 'rotated') and push
-    the new set to both servers (restarts hysteria-server on both). Only the
-    admin keeps access; a disabled user gets their new link back once the
-    admin re-enables them. Returns (admin_new_pw, users_rotated_count).
-    Users who never finished first-time setup (pw_set=0) have no working
-    link yet, so they are left untouched."""
+    """Rotate ONLY the admin's HY2 password and push the new set to both
+    servers (restarts hysteria-server on both). Regular users are NOT
+    touched: admin and users rotate independently now (a user rotates via
+    the per-user button in 修改权限). Returns (admin_new_pw, 0); the
+    second value stays so the callers' response shape is unchanged."""
     new_pw = secrets.token_hex(16)
     conn = db()
     conn.execute("UPDATE users SET hy2_password=?, sub_token=?"
                  " WHERE username='admin'",
                  (new_pw, secrets.token_hex(16)))
-    users = conn.execute(
-        "SELECT username FROM users WHERE role='user' AND pw_set=1"
-    ).fetchall()
-    count = 0
-    for (username,) in users:
-        user_pw = secrets.token_hex(16)
-        conn.execute(
-            "UPDATE users SET hy2_password=?, enabled=0, disabled_reason='rotated',"
-            " sub_token=? WHERE username=?",
-            (user_pw, secrets.token_hex(16), username),
-        )
-        count += 1
     conn.commit()
     conn.close()
     sync_hy2_users_bg()
     sync_vless_users_bg()
-    return new_pw, count
+    return new_pw, 0
+
+
+def rotate_user_credentials(username):
+    """Rotate ONE regular user's node credentials: fresh HY2 password +
+    fresh VLESS UUID, and a fresh subscription token in the same UPDATE
+    (so the old subscription URL stops working). The panel login
+    password (pw_hash) is NOT touched — the user keeps logging in with
+    the old password; only the node links change. Does NOT disable the
+    user. Callers must reject the admin and pending users themselves."""
+    new_pw = secrets.token_hex(16)
+    new_uuid = str(uuid.uuid4())
+    conn = db()
+    conn.execute(
+        "UPDATE users SET hy2_password=?, vless_uuid=?, sub_token=?"
+        " WHERE username=?",
+        (new_pw, new_uuid, secrets.token_hex(16), username),
+    )
+    conn.commit()
+    conn.close()
+    sync_hy2_users_bg()
+    sync_vless_users_bg()
+    return new_pw
 
 
 # --- remote servers (read live over SSH, never stored) ---
@@ -1819,6 +1827,33 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"sub_url": "%s://%s/sub/%s" % (proto, host, token)})
             except Exception as e:
                 self._json(500, {"error": str(e)})
+            return
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/rotate", p)
+        if m:
+            if not self._require(admin_only=True):
+                return
+            username = unquote(m.group(1))
+            if username == "admin":
+                self._json(400, {"error": "管理员请用节点卡片的轮换凭证"})
+                return
+            user = get_user(username)
+            if not user:
+                self._json(404, {"error": "用户不存在"})
+                return
+            if not user.get("pw_set") or user.get("disabled_reason") == "pending_setup":
+                self._json(400, {"error": "该用户尚未设置密码，无法轮换凭证"})
+                return
+            with LOCK:
+                try:
+                    # Make sure the user has a VLESS UUID + port first
+                    # (no-op when already present); then rotate HY2
+                    # password + VLESS UUID + subscription token together.
+                    # pw_hash is NOT touched: the login password stays.
+                    ensure_vless_for_user(username)
+                    rotate_user_credentials(username)
+                    self._json(200, {"ok": True})
+                except Exception as e:
+                    self._json(500, {"ok": False, "error": str(e)})
             return
         if p == "/api/setup-state":
             # No auth: only reveals whether an admin account exists yet.
