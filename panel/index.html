@@ -1,0 +1,4208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鼠鼠面板</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261114">
+<script src="qrcode.min.js"></script>
+<script src="vendor/jsmediatags.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f1419; color: #e6e6e6; }
+  #bg-slats { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .wrap { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: #8b98a5; font-size: 13px; margin-bottom: 18px; line-height: 1.7; }
+  .mobile-meta { display: none; }
+  /* mobile: move current-user/logout + server info to the bottom, keep the title alone on top */
+  @media (max-width: 640px) {
+    #app-view .topbar .who { display: none; }
+    #app-view > .sub { display: none; }
+    .mobile-meta { display: block; margin-top: 4px; border-top: 1px solid rgba(42, 52, 68, 0.8); padding-top: 14px; }
+    .mobile-meta .who { font-size: 13px; color: #8b98a5; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .mobile-meta .who button { background: transparent; border: 1px solid #4a5568; color: #e6e6e6; padding: 6px 14px; font-size: 13px; }
+    .mobile-meta .sub { margin-bottom: 0; }
+  }
+  .card { background: rgba(26, 34, 48, 0.6); border: 1px solid rgba(42, 52, 68, 0.8); border-radius: 12px; padding: 16px; margin-bottom: 16px; color: #e6e6e6; }
+  .card h2 { font-size: 17px; margin: 0 0 4px; }
+  .meta { color: #8b98a5; font-size: 13px; margin-bottom: 10px; }
+  .badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #123f2a; color: #4ade80; margin-left: 6px; vertical-align: middle; }
+  .badge.down { background: #4a1d1d; color: #f87171; }
+  .linkbox { background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; padding: 10px; font-size: 12px; word-break: break-all; color: #a5d6ff; margin: 8px 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+  .qr-modal { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.65); opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility .3s ease; }
+  .qr-modal.open { opacity: 1; visibility: visible; }
+  .qr-modal-card { position: fixed; left: 0; top: 0; width: 300px; background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+  .qr-modal-title { color: #e6e6e6; font-size: 15px; margin-bottom: 14px; }
+  .qr-modal-qr { background: #fff; padding: 10px; border-radius: 12px; width: 240px; height: 240px; margin: 0 auto; }
+  .qr-modal-qr svg { width: 100%; height: 100%; display: block; }
+  .confirm-modal { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.65); opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility .3s ease; }
+  .confirm-modal.open { opacity: 1; visibility: visible; }
+  .confirm-modal-card { position: fixed; left: 0; top: 0; width: 340px; max-width: calc(100vw - 32px); background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+  .confirm-modal-title { color: #e6e6e6; font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .confirm-modal-body { color: #c7d0db; font-size: 14px; line-height: 1.7; white-space: pre-line; margin-bottom: 18px; }
+  .confirm-modal-input { width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; margin-bottom: 18px; box-sizing: border-box; }
+  #confirm-modal-inputs .confirm-modal-field { margin-bottom: 14px; }
+  #confirm-modal-inputs .confirm-modal-field:last-child { margin-bottom: 18px; }
+  #confirm-modal-inputs label { display: block; color: #8b98a5; font-size: 13px; margin: 0 0 6px; }
+  #confirm-modal-inputs input { display: block; width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  #confirm-modal-inputs .confirm-modal-field.checkbox-field { display: flex; align-items: center; gap: 8px; }
+  #confirm-modal-inputs .confirm-modal-field.checkbox-field label { margin: 0; color: #c7d0db; font-size: 14px; }
+  #confirm-modal-inputs .confirm-modal-field.checkbox-field input { width: auto; padding: 0; background: none; border: none; }
+  .confirm-modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); z-index: 100; background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); color: #e6e6e6; font-size: 14px; line-height: 1.5; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); max-width: calc(100vw - 48px); opacity: 0; visibility: hidden; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; pointer-events: none; }
+  .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+  .toast.err { border-color: rgba(248, 113, 113, 0.6); color: #fca5a5; }
+  .btns { display: flex; flex-direction: column; gap: 8px; }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { background: #1d9bf0; color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font-size: 14px; cursor: pointer; transition: transform .18s ease, opacity .18s ease; }
+  button:not(:disabled):hover { transform: scale(1.07); }
+  button.danger { background: #7f1d1d; color: #fca5a5; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:not(:disabled):active { transform: scale(0.96); opacity: .8; }
+  .hint { color: #8b98a5; font-size: 12px; margin-top: 6px; }
+  .version-footer { text-align: center; color: #8b98a5; font-size: 12px; margin-top: 24px; padding-top: 14px; border-top: 1px solid rgba(42, 52, 68, 0.8); }
+  .version-footer span { cursor: pointer; }
+  .version-footer span:hover { color: #e6e6e6; text-decoration: underline; }
+  .version-list { color: #c7d0db; font-size: 14px; line-height: 1.9; margin: 0 0 16px; padding-left: 18px; }
+  .version-link { color: #1d9bf0; font-size: 14px; text-decoration: none; }
+  .version-link:hover { text-decoration: underline; }
+  .stat { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat > div { flex: 1; min-width: 140px; background: rgba(11, 15, 20, 0.6); border: 1px solid rgba(42, 52, 68, 0.8); border-radius: 8px; padding: 10px 12px; transition: transform .18s ease; text-align: center; }
+  .stat > div:hover { transform: scale(1.06); }
+  .stat .k { color: #8b98a5; font-size: 12px; }
+  .stat .v { font-size: 19px; margin-top: 2px; }
+  .bar { height: 8px; background: #2a3444; border-radius: 999px; overflow: hidden; margin-top: 10px; }
+  .bar i { display: block; height: 100%; background: #1d9bf0; }
+  .ok { color: #4ade80; } .warn { color: #fbbf24; } .bad { color: #f87171; }
+  .err { color: #f87171; font-size: 13px; }
+  .switcher { position: relative; display: flex; background: rgba(26, 34, 48, 0.6); border: 1px solid rgba(42, 52, 68, 0.8); border-radius: 999px; padding: 4px; margin-bottom: 16px; max-width: 340px; }
+  .switcher-pill { position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px); background: #1d9bf0; border-radius: 999px; transition: transform .3s ease; }
+  .switcher-btn { position: relative; z-index: 1; flex: 1; background: transparent; color: #8b98a5; border: 0; padding: 8px 0; font-size: 14px; cursor: pointer; transition: color .3s ease, transform .18s ease; }
+  .switcher-btn.active { color: #fff; }
+  .view { display: none; }
+  .view.active, .view.leaving { display: block; }
+  .view.active .card { animation: cardIn .4s ease both; }
+  .view.active .card:nth-child(1) { animation-delay: .03s; }
+  .view.active .card:nth-child(2) { animation-delay: .08s; }
+  .view.active .card:nth-child(3) { animation-delay: .13s; }
+  .view.active .card:nth-child(4) { animation-delay: .18s; }
+  @keyframes cardIn { from { opacity: 0; transform: translateX(60px); filter: blur(8px); } to { opacity: 1; transform: translateX(0); filter: blur(0); } }
+  .view.leaving .card { animation: cardOut .25s ease both; }
+  .view.leaving .card:nth-child(1) { animation-delay: 0s; }
+  .view.leaving .card:nth-child(2) { animation-delay: .03s; }
+  .view.leaving .card:nth-child(3) { animation-delay: .06s; }
+  .view.leaving .card:nth-child(4) { animation-delay: .09s; }
+  @keyframes cardOut { from { opacity: 1; transform: translateX(0); filter: blur(0); } to { opacity: 0; transform: translateX(60px); filter: blur(8px); } }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .topbar h1 { flex: 1; min-width: 0; }
+  .topbar .who { flex-shrink: 0; font-size: 13px; color: #8b98a5; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
+  .topbar .who button { background: transparent; border: 1px solid #4a5568; color: #e6e6e6; padding: 6px 14px; font-size: 13px; margin-left: 0; }
+  .bgm-btn { width: 30px !important; height: 30px; border-radius: 50% !important; padding: 0 !important; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+  .bgm-btn.playing { border-color: #7fb3ff !important; color: #a5d6ff; animation: bgm-pulse 2.4s ease-in-out infinite; }
+  @keyframes bgm-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(127, 179, 255, 0.35); } 50% { box-shadow: 0 0 0 6px rgba(127, 179, 255, 0); } }
+  .login-wrap { max-width: 380px; margin: 80px auto 0; position: relative; z-index: 1; padding: 0 16px; }
+  .login-card { background: rgba(26, 34, 48, 0.6); border: 1px solid rgba(42, 52, 68, 0.8); border-radius: 12px; padding: 24px; color: #e6e6e6; }
+  .login-card h2 { font-size: 18px; margin: 0 0 4px; }
+  .login-card label { display: block; color: #8b98a5; font-size: 13px; margin: 12px 0 4px; }
+  .login-card input, .field input { width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; }
+  .login-card button { width: 100%; margin-top: 18px; }
+  .login-err { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .navrow { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .navrow .switcher { margin-bottom: 0; flex: 1; max-width: 340px; }
+  button.ghost { background: transparent; border: 1px solid #2a3444; color: #a5d6ff; }
+  button.small { padding: 6px 10px; font-size: 13px; }
+  .utable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .utable th, .utable td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #2a3444; vertical-align: middle; }
+  .utable th { color: #8b98a5; font-size: 11px; font-weight: normal; }
+  .utable .acts { white-space: normal; }
+  .utable th:last-child { width: 132px; }
+  .utable .acts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; justify-items: center; align-items: center; width: max-content; margin: 0 auto; }
+  .utable .acts-grid button { margin: 0; white-space: nowrap; padding: 5px 9px; font-size: 12px; }
+  .utable .acts-grid button:only-child { grid-column: 1 / -1; }
+  .utable th, .utable td { position: relative; }
+  .utable th:not(:last-child)::after, .utable td:not(:last-child)::after { content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 1px; height: 55%; background: #2a3444; }
+  .utable td { transition: transform 0.18s ease; }
+  .utable td:hover { transform: scale(1.07); z-index: 2; }
+  .utable td.nowrap { white-space: nowrap; }
+  .utable .sv-line { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
+  .utable .sv-line + .sv-line { margin-top: 5px; }
+  .utable .sv-line .sv-k { color: #8b98a5; flex-shrink: 0; }
+  .utable .vless-row { display: flex; align-items: center; white-space: nowrap; }
+  .utable .vless-uuid { font-family: monospace; font-size: 12px; }
+  .utable .vless-copy { padding: 3px 8px; font-size: 12px; margin-left: 6px; }
+  .utable .vless-port { font-size: 12px; color: #8b98a5; margin-top: 3px; white-space: nowrap; }
+  /* mobile: each user row becomes a card, with the column name shown on the left */
+  @media (max-width: 640px) {
+    .utable, .utable tbody { display: block; width: 100%; }
+    .utable tr:first-child { display: none; }
+    .utable tr { display: block; border: 1px solid #2a3444; border-radius: 12px; margin-bottom: 12px; padding: 6px 14px; }
+    .utable td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; border-bottom: none; }
+    .utable td::before { content: attr(data-label); color: #8b98a5; font-size: 13px; flex-shrink: 0; }
+    .utable td.acts { display: block; padding-top: 10px; margin-top: 4px; border-top: 1px solid #2a3444; }
+    .utable td.acts::before { display: none; }
+    .utable td::after { display: none; }
+    .utable td:hover { transform: none; }
+  }
+  .field { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .field > div { flex: 1; min-width: 140px; }
+  .field label { display: block; color: #8b98a5; font-size: 12px; margin-bottom: 4px; }
+  .navrow button.on { background: #1d9bf0; color: #fff; border-color: #1d9bf0; }
+  .switcher.nopill .switcher-pill { display: none; }
+  /* --- panel name edit (title ✏️, admin only) --- */
+  /* --- server tabs: single server shows just its name, no switch styling --- */
+  .server-single { font-size: 15px; color: #e6e6e6; padding: 8px 14px; }
+  #servers-gear-btn { font-size: 16px; padding: 8px 12px !important; }
+  /* --- BGM expand bar: rotates/slides down from the button --- */
+  .bgm-wrap { position: relative; display: inline-flex; }
+  .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-wrap: wrap; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
+  @media (hover: hover) {
+    .bgm-wrap:hover .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
+  }
+  .bgm-wrap.open .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
+  .bgm-bar-btn { background: transparent; border: 1px solid #2a3444; color: #e6e6e6; padding: 8px 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
+  .bgm-bar-btn:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
+  /* --- BGM cover inside the expand bar: it shows with the bar (hover
+     on desktop, tap on touch) --- */
+  .bgm-cover { flex-basis: 100%; display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 2px; }
+  .bgm-cover-img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+  .bgm-cover-ph { width: 56px; height: 56px; border-radius: 8px; background: #0b0f14; border: 1px solid #2a3444; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+  .bgm-cover-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #e6e6e6; }
+  /* --- floating lyrics panel: persistent while enabled (default on) --- */
+  #lyrics-float { position: fixed; right: 16px; bottom: 16px; width: 320px; max-width: calc(100vw - 32px); max-height: 42vh; background: rgba(26, 34, 48, 0.88); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); z-index: 30; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(6px); touch-action: none; cursor: grab; }
+  #lyrics-float.dragging { cursor: grabbing; }
+  #lyrics-float .lyr-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; font-size: 13px; color: #a5d6ff; }
+  #lyrics-float .lyr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lyrics-float .lyr-close { background: transparent; border: none; color: #8b98a5; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
+  #lyrics-float .lyr-close:hover { color: #fff; }
+  #lyrics-lines { overflow-y: auto; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .25s ease; }
+  /* floating lyrics: 1 line by default; 5 lines when pinned (click) or hovered (mouse only) */
+  #lyrics-float.expanded #lyrics-lines { max-height: 140px; }
+  @media (hover: hover) {
+    #lyrics-float:hover #lyrics-lines { max-height: 140px; }
+  }
+  .lyr-line { transition: color .2s; }
+  .lyr-line.active { color: #e6e6e6; font-weight: 600; }
+  .lyr-empty { color: #8b98a5; text-align: center; padding: 18px 0; }
+  .lyr-select { width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  /* --- log export: custom range reveal (same .25s ease as .bgm-bar/.toast) --- */
+  .log-custom-wrap { overflow: hidden; max-height: 0; opacity: 0; transform: translateY(-6px); visibility: hidden; transition: max-height .25s ease, opacity .25s ease, transform .25s ease, visibility .25s ease; }
+  .log-custom-wrap.open { max-height: 170px; opacity: 1; transform: translateY(0); visibility: visible; }
+  .log-wheel-field { display: block; width: 100%; box-sizing: border-box; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; text-align: left; cursor: pointer; transition: border-color .18s ease; }
+  .log-wheel-field:hover { border-color: #1d9bf0; }
+  .log-wheel-field.empty { color: #8b98a5; }
+  /* --- log wheel picker: 6 scroll-snap columns (native scrolling, no custom animation) --- */
+  .log-wheel { display: flex; gap: 4px; margin: 4px 0 14px; }
+  .log-wheel-col-wrap { flex: 1; min-width: 0; text-align: center; }
+  .log-wheel-col-label { font-size: 11px; color: #8b98a5; margin-bottom: 4px; }
+  .log-wheel-col { height: 150px; overflow-y: auto; scroll-snap-type: y mandatory; padding: 50px 0; box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; }
+  .log-wheel-col::-webkit-scrollbar { display: none; }
+  .log-wheel-item { height: 50px; line-height: 50px; font-size: 15px; color: #8b98a5; scroll-snap-align: center; transition: color .2s ease, font-size .2s ease; }
+  .log-wheel-item.sel { color: #e6e6e6; font-size: 18px; font-weight: 600; }
+  /* --- log export: custom range dropdown (dark modal, same as other panel modals).
+       Replaces the native <select>, whose Android system popup was white and
+       clashed with the panel's dark theme. --- */
+  .log-range-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; box-sizing: border-box; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; text-align: left; cursor: pointer; transition: border-color .18s ease; }
+  .log-range-btn:hover { border-color: #1d9bf0; }
+  .log-range-btn .log-range-caret { color: #8b98a5; font-size: 12px; flex-shrink: 0; }
+  .log-range-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; box-sizing: border-box; background: transparent; border: none; border-radius: 10px; color: #e6e6e6; padding: 12px 14px; font-size: 15px; text-align: left; cursor: pointer; transition: background .18s ease; }
+  .log-range-opt:hover { background: rgba(255, 255, 255, 0.06); }
+  .log-range-opt.sel { color: #a5d6ff; font-weight: 600; }
+  .log-range-check { color: #1d9bf0; font-size: 16px; visibility: hidden; flex-shrink: 0; }
+  .log-range-opt.sel .log-range-check { visibility: visible; }
+  /* --- playlist modal --- */
+  .playlist-list { max-height: 320px; overflow-y: auto; margin-bottom: 12px; }
+  .pl-row { display: flex; align-items: center; gap: 8px; padding: 9px 4px; border-bottom: 1px solid #2a3444; min-height: 44px; }
+  .pl-row.playing { color: #a5d6ff; }
+  .pl-row .pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: 14px; }
+  .pl-row .pl-name:hover { color: #fff; }
+  .pl-check { width: 18px; height: 18px; flex-shrink: 0; accent-color: #1d9bf0; }
+  .pl-mv { flex-shrink: 0; padding: 6px 9px !important; font-size: 13px; background: transparent !important; border: 1px solid #2a3444 !important; color: #e6e6e6; }
+  .playlist-drop { border: 1px dashed #4a5568; border-radius: 10px; padding: 14px; text-align: center; color: #8b98a5; font-size: 13px; margin-bottom: 14px; }
+  .playlist-drop.drag-over { border-color: #1d9bf0; color: #a5d6ff; background: rgba(29, 155, 240, 0.08); }
+  /* --- servers settings modal --- */
+  .srv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid #2a3444; }
+  .srv-name-input { flex: 1; min-width: 120px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 10px; font-size: 14px; }
+  .srv-quota-label { display: flex; align-items: center; gap: 4px; color: #8b98a5; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+  .srv-quota-input { width: 84px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 8px; font-size: 14px; }
+  .srv-info { color: #8b98a5; font-size: 12px; flex-shrink: 0; }
+  .servers-add { border-top: 1px solid #2a3444; padding-top: 14px; margin-top: 6px; }
+  #servers-modal-card { max-height: calc(100vh - 40px); overflow-y: auto; }
+  /* confirm / registration modals stay above the playlist & servers modals */
+  #confirm-modal, #reg-modal { z-index: 70; }
+  /* mobile: the bottom music bar drops UP from the button, buttons stay tappable */
+  @media (max-width: 640px) {
+    .mobile-meta .bgm-bar { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; transform-origin: bottom center; transform: translateY(8px) rotateX(30deg); }
+    .mobile-meta .bgm-wrap.open .bgm-bar { transform: translateY(0) rotateX(0); }
+    .bgm-bar { flex-wrap: wrap; max-width: calc(100vw - 32px); }
+    .bgm-bar-btn { min-height: 40px; padding: 10px 12px; }
+    /* floating lyrics sit above the bottom music bar on mobile; default 1 line
+       so it never covers the music button; tap toggles the pinned 5-line view,
+       and it grows upward from the bottom anchor, never down over the bar */
+    #lyrics-float { left: 12px; right: 12px; bottom: 120px; width: auto; max-height: 30vh; }
+    .srv-name-input { min-width: 0; }
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="bg-slats"></canvas>
+<div class="login-wrap hidden" id="login-view">
+  <div class="login-card">
+    <h2 id="login-title">鼠鼠面板</h2>
+    <div class="meta">请用你的账号登录。管理员登录后可管理用户，普通用户登录后只能看到自己的节点和流量。</div>
+    <form id="login-form">
+      <label>用户名</label>
+      <input id="login-user" type="text" autocomplete="username" placeholder="用户名">
+      <label>密码</label>
+      <input id="login-pass" type="password" autocomplete="current-password" placeholder="密码">
+      <div class="login-err" id="login-err"></div>
+      <button type="submit" id="login-btn">登录</button>
+    </form>
+    <div style="text-align:center; margin-top:14px;"><a href="#" id="show-setup" style="color:#1d9bf0; font-size:13px;">首次登录？点这里设置密码</a></div>
+    <form id="setup-form" class="hidden">
+      <label>用户名</label>
+      <input id="setup-user" type="text" autocomplete="username" placeholder="管理员给你的用户名">
+      <label>一次性口令</label>
+      <input id="setup-token" type="text" placeholder="管理员发给你的一次性口令">
+      <label>新密码（至少 6 位）</label>
+      <input id="setup-pass" type="password" autocomplete="new-password" placeholder="设置一个密码">
+      <label>确认新密码</label>
+      <input id="setup-pass2" type="password" autocomplete="new-password" placeholder="再输一次">
+      <div class="login-err" id="setup-err"></div>
+      <button type="submit" id="setup-btn">设置密码并登录</button>
+      <div style="text-align:center; margin-top:12px;"><a href="#" id="show-login" style="color:#8b98a5; font-size:13px;">返回登录</a></div>
+    </form>
+    <form id="admin-setup-form" class="hidden">
+      <div class="meta" style="margin-bottom:4px;">还没有管理员账号，先创建一个。密码可以自己填，也可以点“生成强密码”——生成后请先记下来再提交。</div>
+      <label>管理员用户名</label>
+      <input id="admin-setup-user" type="text" autocomplete="username" placeholder="admin" value="admin">
+      <label>管理员密码（至少 6 位）</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="admin-setup-pass" type="password" autocomplete="new-password" placeholder="设置一个密码" style="flex:1; min-width:0;">
+        <button type="button" id="admin-setup-gen" class="ghost small" style="width:auto; margin-top:0; white-space:nowrap;">🎲 生成强密码</button>
+      </div>
+      <label>确认管理员密码</label>
+      <input id="admin-setup-pass2" type="password" autocomplete="new-password" placeholder="再输一次">
+      <div class="login-err" id="admin-setup-err"></div>
+      <button type="submit" id="admin-setup-btn">创建管理员并进入</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap hidden" id="app-view">
+  <div class="topbar">
+    <h1><span id="panel-name">鼠鼠面板</span></h1>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><img class="bgm-cover-img hidden" alt=""><div class="bgm-cover-ph">🎵</div><div class="bgm-cover-name"></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-lyrics" title="歌词设置">📝 歌词设置</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+  </div>
+  <div class="sub">
+    <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
+  </div>
+
+  <div class="navrow" id="admin-nav">
+    <div class="switcher" id="switcher">
+    <span class="switcher-pill" id="switcher-pill"></span>
+    </div>
+    <div class="server-single hidden" id="server-single"></div>
+    <button class="ghost" id="servers-gear-btn" title="服务器设置" onclick="showServersModal(this)">⚙️</button>
+    <button class="ghost" id="users-nav-btn" onclick="switchView('users')">用户管理</button>
+  </div>
+
+  <div class="view" id="view-users">
+  <div class="card">
+    <h2>添加用户</h2>
+    <div class="field">
+      <div><label>用户名（2-32 位，支持中文、字母、数字、下划线和横线）</label><input id="nu-name" type="text" placeholder="比如 小明 或 xiaoming"></div>
+      <div><label id="nu-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="nu-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div><label id="nu-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="nu-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div style="flex:0 0 auto"><button onclick="addUser(this)">添加用户</button></div>
+    </div>
+    <div class="hint">添加后只生成一个一次性口令，把它发给新用户，他首次登录时用这个口令自己设置密码。设置完成后他立刻获得两台服务器的 HY2 与 VLESS 专属链接（用户名即 HY2 账号，VLESS 用专属端口）。上限按台分别计算：某台超限只停那台的节点，另一台不受影响，下月 1 号自动恢复。</div>
+    <div class="err" id="nu-err"></div>
+  </div>
+
+  <div class="card">
+    <h2>用户列表</h2>
+    <div id="users-table-wrap"><div class="meta">加载中…</div></div>
+  </div>
+  </div>
+
+  <div class="view hidden" id="view-user">
+  <div class="switcher" id="user-switcher">
+    <span class="switcher-pill" id="user-switcher-pill"></span>
+    <button class="switcher-btn active" data-user-server="local" onclick="switchUserServer('local')">Debian-2</button>
+    <button class="switcher-btn" data-user-server="d1" onclick="switchUserServer('d1')">Debian-1</button>
+  </div>
+  <div class="view" id="view-user-d1">
+  <div class="card">
+    <h2>我的流量 <span class="badge" id="u-badge-d1">…</span></h2>
+    <div class="stat">
+      <div><div class="k">本月合计（入站+出站）</div><div class="v" id="u-month-d1">…</div></div>
+      <div><div class="k">每月上限</div><div class="v" id="u-limit-d1">…</div></div>
+      <div><div class="k">本月剩余</div><div class="v" id="u-left-d1">…</div></div>
+    </div>
+    <div class="stat" style="margin-top:12px">
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-d1">…</div></div>
+      <div><div class="k">今日入站</div><div class="v" id="u-today-rx-d1">…</div></div>
+      <div><div class="k">今日出站</div><div class="v" id="u-today-tx-d1">…</div></div>
+    </div>
+    <div class="hint" id="u-note-d1">…</div>
+    <div class="bar"><i id="u-bar-d1" style="width:0%"></i></div>
+  </div>
+
+  <div class="card hidden" id="user-disabled-card-d1">
+    <h2>用户已停用</h2>
+    <div class="meta" id="user-disabled-msg-d1">你的账号已被停用，节点链接已隐藏。请联系管理员重新启用，启用后这里会显示新的专属链接。</div>
+  </div>
+
+  <div class="card" id="user-card-d1">
+    <h2>Hysteria 2</h2>
+    <div class="meta">官方 Hysteria 2 · UDP 10468</div>
+    <div class="linkbox" id="u-link-d1">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('u-link-d1', this)">一键复制链接</button>
+        <button onclick="showQR('u-link-d1', '', this)">点击显示二维码</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="user-card-vless-d1">
+    <h2>VLESS + TLS</h2>
+    <div class="meta">sing-box · VLESS + TLS（端口在链接里）</div>
+    <div class="linkbox" id="u-link-vless-d1">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('u-link-vless-d1', this)">一键复制链接</button>
+        <button onclick="showQR('u-link-vless-d1', '', this)">点击显示二维码</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div class="view" id="view-user-local">
+  <div class="card">
+    <h2>我的流量 <span class="badge" id="u-badge-local">…</span></h2>
+    <div class="stat">
+      <div><div class="k">本月合计（入站+出站）</div><div class="v" id="u-month-local">…</div></div>
+      <div><div class="k">每月上限</div><div class="v" id="u-limit-local">…</div></div>
+      <div><div class="k">本月剩余</div><div class="v" id="u-left-local">…</div></div>
+    </div>
+    <div class="stat" style="margin-top:12px">
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-local">…</div></div>
+      <div><div class="k">今日入站</div><div class="v" id="u-today-rx-local">…</div></div>
+      <div><div class="k">今日出站</div><div class="v" id="u-today-tx-local">…</div></div>
+    </div>
+    <div class="hint" id="u-note-local">…</div>
+    <div class="bar"><i id="u-bar-local" style="width:0%"></i></div>
+  </div>
+
+  <div class="card hidden" id="user-disabled-card-local">
+    <h2>用户已停用</h2>
+    <div class="meta" id="user-disabled-msg-local">你的账号已被停用，节点链接已隐藏。请联系管理员重新启用，启用后这里会显示新的专属链接。</div>
+  </div>
+
+  <div class="card" id="user-card-d2">
+    <h2>Hysteria 2</h2>
+    <div class="meta">官方 Hysteria 2 · UDP 443</div>
+    <div class="linkbox" id="u-link-d2">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('u-link-d2', this)">一键复制链接</button>
+        <button onclick="showQR('u-link-d2', '', this)">点击显示二维码</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="user-card-vless-d2">
+    <h2>VLESS + REALITY</h2>
+    <div class="meta">sing-box · VLESS + Reality（端口在链接里）</div>
+    <div class="linkbox" id="u-link-vless-d2">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('u-link-vless-d2', this)">一键复制链接</button>
+        <button onclick="showQR('u-link-vless-d2', '', this)">点击显示二维码</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+
+  <div class="view" id="view-d2">
+  <div class="card">
+    <h2>流量使用 <span class="badge" id="traffic-badge">…</span></h2>
+    <div class="stat">
+      <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t-total">…</div></div>
+      <div><div class="k">入站</div><div class="v" id="t-rx">…</div></div>
+      <div><div class="k">出站</div><div class="v" id="t-tx">…</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t-quota">2000 GB</div></div>
+    </div>
+    <div class="stat" style="margin-top:12px">
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d-total">…</div></div>
+      <div><div class="k">今日入站</div><div class="v" id="d-rx">…</div></div>
+      <div><div class="k">今日出站</div><div class="v" id="d-tx">…</div></div>
+    </div>
+    <div class="hint" id="d-note">…</div>
+    <div class="bar"><i id="t-bar" style="width:0%"></i></div>
+    <div class="hint" id="t-note">…</div>
+  </div>
+
+  <div class="card">
+    <h2>证书到期</h2>
+    <div class="stat">
+      <div><div class="k">节点证书</div><div class="v" id="c-node">…</div></div>
+      <div><div class="k">面板证书</div><div class="v" id="c-panel">…</div></div>
+    </div>
+    <div class="hint">证书由 acme.sh / Hysteria 内置 ACME 自动续期，到期前留意同步状态即可。</div>
+  </div>
+
+  <div class="card" id="card-vless">
+    <h2>VLESS + REALITY <span class="badge" data-svc="sing-box">…</span></h2>
+    <div class="meta">sing-box · TCP 443 · SNI www.apple.com</div>
+    <div class="linkbox" id="link-vless">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('link-vless', this)">一键复制链接</button>
+        <button onclick="showQR('link-vless', 'VLESS + REALITY', this)">点击显示二维码</button>
+        <button class="danger small" onclick="rotateLink('vless', this)">轮换凭证（旧链接失效）</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card-hy2">
+    <h2>Hysteria 2 <span class="badge" data-svc="hysteria-server">…</span></h2>
+    <div class="meta">官方 Hysteria 2 · UDP 443</div>
+    <div class="linkbox" id="link-hy2">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('link-hy2', this)">一键复制链接</button>
+        <button onclick="showQR('link-hy2', 'Hysteria 2', this)">点击显示二维码</button>
+        <button class="danger small" onclick="rotateLink('hy2', this)">轮换凭证（旧链接失效）</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="view active" id="view-d1">
+  <div class="card">
+    <h2>流量使用 <span class="badge" id="traffic1-badge">…</span></h2>
+    <div class="stat">
+      <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t1-total">…</div></div>
+      <div><div class="k">入站</div><div class="v" id="t1-rx">…</div></div>
+      <div><div class="k">出站</div><div class="v" id="t1-tx">…</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t1-quota">3000 GB</div></div>
+    </div>
+    <div class="stat" style="margin-top:12px">
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d1-total">…</div></div>
+      <div><div class="k">今日入站</div><div class="v" id="d1-rx">…</div></div>
+      <div><div class="k">今日出站</div><div class="v" id="d1-tx">…</div></div>
+    </div>
+    <div class="hint" id="d1-note">…</div>
+    <div class="bar"><i id="t1-bar" style="width:0%"></i></div>
+    <div class="hint" id="t1-note">…</div>
+  </div>
+
+  <div class="card">
+    <h2>证书到期</h2>
+    <div class="stat">
+      <div><div class="k">节点证书</div><div class="v" id="c1-node">…</div></div>
+    </div>
+    <div class="hint">证书由 Hysteria 内置 ACME 自动续期，sing-box 每日同步，到期前留意同步状态即可。</div>
+  </div>
+
+  <div class="card" id="card-d1vless">
+    <h2><span class="card-name">VLESS + TLS</span> <span class="badge" data-d1svc="singbox">…</span></h2>
+    <div class="meta">sing-box · TCP 52318</div>
+    <div class="linkbox" id="link-d1vless">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('link-d1vless', this)">一键复制链接</button>
+        <button onclick="showQR('link-d1vless', d1CardTitle('VLESS + TLS'), this)">点击显示二维码</button>
+        <button class="danger small" onclick="rotateD1('vless', this)">轮换凭证（旧链接失效）</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card-d1hy2">
+    <h2><span class="card-name">Hysteria 2</span> <span class="badge" data-d1svc="hysteria">…</span></h2>
+    <div class="meta">官方 Hysteria 2 · UDP 10468</div>
+    <div class="linkbox" id="link-d1hy2">加载中…</div>
+    <div class="btns">
+      <div class="btnrow">
+        <button onclick="copyText('link-d1hy2', this)">一键复制链接</button>
+        <button onclick="showQR('link-d1hy2', d1CardTitle('Hysteria 2'), this)">点击显示二维码</button>
+        <button class="danger small" onclick="rotateD1('hy2', this)">轮换凭证（旧链接失效）</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="view" id="view-remote">
+  <div class="card">
+    <h2 id="remote-title">服务器</h2>
+    <div class="meta" id="remote-desc">未连通 · 待配置 agent</div>
+    <div class="hint">这台服务器还没有配置 agent，无法读取节点与流量。请在目标服务器上安装 agent，并把本面板的 SSH 公钥加入目标机的授权，再刷新面板。</div>
+  </div>
+  </div>
+
+  <div class="hint">节点链接等同于密码，请勿转发。面板由账号登录保护。「轮换凭证」会立刻作废旧链接，只认新链接，点之前确认各设备都方便换新链接。移动鼠标扰动背景波纹，点击页面任意处激起水花。</div>
+
+  <div class="mobile-meta">
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><img class="bgm-cover-img hidden" alt=""><div class="bgm-cover-ph">🎵</div><div class="bgm-cover-name"></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-lyrics" title="歌词设置">📝 歌词设置</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="sub">
+      <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
+    </div>
+  </div>
+
+  <div class="version-footer"><span id="version-btn"></span></div>
+</div>
+
+<div class="qr-modal" id="qr-modal">
+  <div class="qr-modal-card" id="qr-modal-card">
+    <div class="qr-modal-title" id="qr-modal-title"></div>
+    <div class="qr-modal-qr" id="qr-modal-qr"></div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="confirm-modal">
+  <div class="confirm-modal-card" id="confirm-modal-card">
+    <div class="confirm-modal-title" id="confirm-modal-title"></div>
+    <div class="confirm-modal-body" id="confirm-modal-body"></div>
+    <input type="text" id="confirm-modal-input" class="confirm-modal-input hidden" autocomplete="off">
+    <div id="confirm-modal-inputs" class="hidden"></div>
+    <div class="confirm-modal-btns">
+      <button class="ghost" id="confirm-modal-cancel">取消</button>
+      <button class="danger" id="confirm-modal-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="reg-modal">
+  <div class="confirm-modal-card" id="reg-modal-card">
+    <div class="confirm-modal-title" id="reg-modal-title"></div>
+    <div class="confirm-modal-body" id="reg-modal-body"></div>
+    <div class="confirm-modal-btns">
+      <button id="reg-modal-copy">复制注册信息</button>
+      <button class="ghost" id="reg-modal-ok" disabled>确认已复制</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="playlist-modal">
+  <div class="confirm-modal-card" id="playlist-modal-card" style="width:440px;">
+    <div class="confirm-modal-title">播放列表</div>
+    <div class="playlist-list" id="playlist-list"></div>
+    <div class="playlist-drop" id="playlist-drop">把音频文件拖到这里上传，或 <button class="ghost small" id="playlist-upload-btn" type="button">上传音乐</button><input type="file" id="playlist-file" accept="audio/*,.mp3,.flac,.ogg,.wav,.m4a" multiple hidden></div>
+    <div class="confirm-modal-btns">
+      <button class="danger" id="playlist-delete-btn">删除选中</button>
+      <button id="playlist-close-btn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="version-modal">
+  <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.3 更新日志</div>
+    <ul class="version-list">
+      <li>安装支持免交互：设 MP_* 环境变量可跳过对应提问（域名、面板域名、邮箱、额度、端口）</li>
+      <li>项目现为 hysteria2-installer 的 fork，致谢已相应调整</li>
+    </ul>
+    <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
+    <div class="confirm-modal-btns">
+      <button id="version-modal-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="lyrics-settings-modal">
+  <div class="confirm-modal-card" id="lyrics-settings-modal-card" style="width:400px;">
+    <div class="confirm-modal-title">歌词设置</div>
+    <div class="field">
+      <div><label style="display:flex;align-items:center;gap:8px;margin:0;color:#c7d0db;font-size:14px;"><input type="checkbox" id="lyr-set-enabled" style="width:18px;height:18px;accent-color:#1d9bf0;flex-shrink:0;">悬浮歌词（常驻显示）</label></div>
+    </div>
+    <div class="field">
+      <div><label>识别源</label><select id="lyr-set-source" class="lyr-select"><option value="online">在线识别</option><option value="local">仅本地（只读文件内嵌）</option></select></div>
+    </div>
+    <div class="meta" style="margin-bottom:12px;">歌词优先读文件内嵌；文件里没有时按识别源检索。切源后会重新识别当前歌曲。</div>
+    <div class="confirm-modal-btns">
+      <button class="ghost" id="lyr-set-refetch">重新识别当前歌曲</button>
+      <button id="lyr-set-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="servers-modal">
+  <div class="confirm-modal-card" id="servers-modal-card" style="width:460px;">
+    <div class="confirm-modal-title">服务器设置</div>
+    <div class="servers-add" id="panel-name-section">
+      <div class="confirm-modal-title" style="margin-bottom:8px;">面板名称</div>
+      <div class="field">
+        <div><label>名称</label><input id="cfg-panel-name" type="text" placeholder="面板名称" maxlength="32"></div>
+      </div>
+      <div class="btnrow">
+        <button onclick="savePanelName(this)">保存</button>
+      </div>
+      <div class="hint">1–32 个字符，保存后立即生效，标题、登录页与 Telegram 提醒开头都会跟着变。</div>
+    </div>
+    <div id="servers-list"></div>
+    <div class="servers-add">
+      <div class="field">
+        <div><label>名字</label><input id="srv-add-name" type="text" placeholder="比如 Debian-3" maxlength="32"></div>
+        <div><label>主机 / IP</label><input id="srv-add-host" type="text" placeholder="IP 或域名"></div>
+        <div><label>端口</label><input id="srv-add-port" type="number" min="1" max="65535" placeholder="22"></div>
+        <div><label>每月额度（GB）</label><input id="srv-add-quota" type="number" min="1" max="1000000" placeholder="比如 2000"></div>
+      </div>
+      <button id="srv-add-btn" onclick="addServer(this)">添加服务器</button>
+      <div class="hint">添加后先做 SSH 连通性测试；不通也会保存，之后要在目标机上安装 agent 并授权本面板的 SSH 公钥。</div>
+    </div>
+    <div class="servers-add" id="alerts-section">
+      <div class="confirm-modal-title" style="margin-bottom:8px;">流量预警</div>
+      <div class="field">
+        <div><label>Telegram Bot Token</label><input id="al-token" type="password" placeholder="未设置" autocomplete="off"></div>
+        <div><label>Telegram Chat ID</label><input id="al-chat" type="text" placeholder="比如 123456789" autocomplete="off"></div>
+      </div>
+      <div class="field">
+        <div><label>提醒阈值（%）</label><input id="al-alert" type="number" min="0" max="100" step="1" placeholder="80"></div>
+        <div><label>自动停用阈值（%）</label><input id="al-disable" type="number" min="0" max="100" step="1" placeholder="95"></div>
+      </div>
+      <div id="al-status" class="meta">加载中…</div>
+      <div class="btnrow" style="margin-top:10px;">
+        <button class="ghost" onclick="testAlerts(this)">发送测试消息</button>
+        <button onclick="saveAlerts(this)">保存</button>
+        <button class="danger" onclick="deleteAlerts(this)">删除机器人配置</button>
+      </div>
+      <div class="hint">先在 Telegram 里找 @BotFather 新建机器人拿到 Token，再找 @userinfobot 查自己的 Chat ID。每月达到提醒阈值发一次提醒，达到停用阈值自动停节点（本机直接停，远程服务器需手动停），每月 1 号重置。恢复节点需手动启动服务。Token 留空表示不改，保存后只显示末尾 4 位。</div>
+    </div>
+    <div class="servers-add" id="logs-section">
+      <div class="confirm-modal-title" style="margin-bottom:8px;">运行日志</div>
+      <div class="field">
+        <div><label>时间范围</label><button type="button" class="log-range-btn" id="log-range-btn"><span id="log-range-label">全部</span><span class="log-range-caret">▾</span></button></div>
+      </div>
+      <div id="log-custom" class="log-custom-wrap">
+        <div class="field">
+          <div><label>开始时间</label><button type="button" class="log-wheel-field empty" id="log-from-btn">请选择开始时间</button></div>
+          <div><label>结束时间</label><button type="button" class="log-wheel-field empty" id="log-to-btn">请选择结束时间</button></div>
+        </div>
+      </div>
+      <div class="btnrow">
+        <button onclick="downloadAdminLogs(this)">下载日志</button>
+      </div>
+      <div class="hint">导出面板后端（API）的运行日志，用于定位问题。选「自定义时间段」后点时间可滑动选择年月日时分秒。日志只含请求行与运行信息，不含密码、口令与节点链接。</div>
+    </div>
+    <div class="confirm-modal-btns" style="margin-top:16px;">
+      <button class="ghost" id="servers-close-btn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="log-wheel-modal">
+  <div class="confirm-modal-card" id="log-wheel-modal-card" style="width:480px;">
+    <div class="confirm-modal-title" id="log-wheel-title">选择开始时间</div>
+    <div class="log-wheel" id="log-wheel"></div>
+    <div class="confirm-modal-btns">
+      <button class="ghost" id="log-wheel-cancel">取消</button>
+      <button id="log-wheel-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="log-range-modal">
+  <div class="confirm-modal-card" id="log-range-modal-card" style="width:300px;">
+    <div class="confirm-modal-title">时间范围</div>
+    <div id="log-range-opts">
+      <button type="button" class="log-range-opt sel" data-value="all"><span>全部</span><span class="log-range-check">✓</span></button>
+      <button type="button" class="log-range-opt" data-value="today"><span>今天</span><span class="log-range-check">✓</span></button>
+      <button type="button" class="log-range-opt" data-value="1h"><span>最近1小时</span><span class="log-range-check">✓</span></button>
+      <button type="button" class="log-range-opt" data-value="24h"><span>最近24小时</span><span class="log-range-check">✓</span></button>
+      <button type="button" class="log-range-opt" data-value="7d"><span>最近7天</span><span class="log-range-check">✓</span></button>
+      <button type="button" class="log-range-opt" data-value="custom"><span>自定义时间段</span><span class="log-range-check">✓</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<audio id="bgm" preload="auto"></audio>
+
+<div id="lyrics-float" class="hidden">
+  <div class="lyr-head"><span class="lyr-title" id="lyrics-title">背景音乐</span><button class="lyr-close" id="lyrics-close" title="关闭悬浮歌词">✕</button></div>
+  <div id="lyrics-lines"><div class="lyr-empty">暂无歌词</div></div>
+</div>
+
+<script>
+var LINKS = null;
+var LINKS1 = null;
+var PANEL_VERSION = "V1.1.3"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+
+/* ---- background music: playlist with fade in / fade out ----
+   Volume moves toward its target in small steps (0.05 per 100ms tick),
+   so every change is a smooth fade: fade-in at the start, fade-out in
+   the last 3s before a track ends, fade-in when resuming after a
+   pause, and fade-out before pausing. Tracks live in /music/ and are
+   listed by GET /api/music. Modes: loop (default), shuffle, single —
+   kept in localStorage. The round 🎵 button expands a control bar on
+   hover (desktop) or on tap (touch); the bar's own ⏸/▶ button
+   toggles playback. */
+var BGM_FADE = 3; // seconds of position-based fade at start / before track end
+var BGM_STEP = 0.05; // volume step per 100ms tick (0 -> 1 in ~2s)
+var bgm = document.getElementById('bgm');
+var bgmTimer = null;
+var bgmFadingOut = false;
+var PLAYLIST = [];
+var bgmCurrentId = null;
+var bgmMode = 'loop';
+try { bgmMode = localStorage.getItem('bgm-mode') || 'loop'; } catch (e) {}
+if (['loop', 'shuffle', 'single'].indexOf(bgmMode) < 0) bgmMode = 'loop';
+var isTouch = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+function bgmModeShort() { return bgmMode === 'loop' ? '循环播放' : (bgmMode === 'shuffle' ? '随机播放' : '单曲循环'); }
+function bgmModeLabel() { return bgmMode === 'loop' ? '🔁 循环播放' : (bgmMode === 'shuffle' ? '🔀 随机播放' : '🔂 单曲循环'); }
+function bgmTrackById(id) { for (var i = 0; i < PLAYLIST.length; i++) if (PLAYLIST[i].id === id) return PLAYLIST[i]; return null; }
+function bgmCurrentIdx() { for (var i = 0; i < PLAYLIST.length; i++) if (PLAYLIST[i].id === bgmCurrentId) return i; return -1; }
+function bgmUpdateModeBtns() { document.querySelectorAll('.bgm-bar-mode').forEach(function (b) { b.textContent = bgmModeLabel(); }); }
+function bgmUpdateTitle() {
+  var t = bgmTrackById(bgmCurrentId);
+  var label = t ? (t.name + (t.artist ? ' - ' + t.artist : '')) : '背景音乐';
+  document.querySelectorAll('.bgm-btn').forEach(function (b) { b.title = label + '（' + bgmModeShort() + '）'; });
+}
+function bgmSetState(playing) {
+  document.querySelectorAll('.bgm-btn').forEach(function (b) {
+    b.textContent = playing ? '⏸' : '🎵';
+    b.classList.toggle('playing', playing);
+  });
+  document.querySelectorAll('.bgm-bar-play').forEach(function (b) {
+    b.textContent = playing ? '⏸' : '▶';
+  });
+}
+function bgmPosVol() {
+  var d = bgm.duration;
+  if (!d || isNaN(d) || !isFinite(d)) return 1;
+  var t = bgm.currentTime;
+  var v = 1;
+  if (t < BGM_FADE) v = t / BGM_FADE;
+  else if (d - t < BGM_FADE) v = (d - t) / BGM_FADE;
+  return Math.max(0, Math.min(1, v));
+}
+function bgmTick() {
+  if (bgm.paused && !bgmFadingOut) return;
+  syncLyricsLine();
+  var target = bgmFadingOut ? 0 : bgmPosVol();
+  var cur = bgm.volume;
+  var diff = target - cur;
+  if (Math.abs(diff) <= BGM_STEP) bgm.volume = target;
+  else bgm.volume = cur + (diff > 0 ? BGM_STEP : -BGM_STEP);
+  if (bgmFadingOut && bgm.volume <= 0.001) {
+    bgm.volume = 0;
+    bgmFadingOut = false;
+    if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+    bgm.pause();
+  }
+}
+function bgmStartTick() {
+  if (bgmTimer) clearInterval(bgmTimer);
+  bgmTimer = setInterval(bgmTick, 100);
+  bgmTick();
+}
+/* Explicit pause/play state, kept in localStorage so it survives a
+   user switch (logout/login): if the user paused, autoplay must not
+   restart the music; if playing, autoplay may resume. Only the user's
+   own pause/play actions change this flag - autoplay never does. */
+function bgmUserPaused() { try { return localStorage.getItem('bgm-paused') === '1'; } catch (e) { return false; } }
+function bgmSetUserPaused(p) { try { localStorage.setItem('bgm-paused', p ? '1' : '0'); } catch (e) {} }
+function bgmToggle() {
+  if (bgmFadingOut) {
+    /* Clicked during the fade-out: cancel it, keep playing. */
+    bgmFadingOut = false;
+    bgmStartTick();
+    bgmSetUserPaused(false);
+    return;
+  }
+  if (bgm.paused) { bgmSetUserPaused(false); bgm.play().catch(function () {}); }
+  else {
+    /* Fade out first, pause when the volume reaches 0. */
+    bgmSetUserPaused(true);
+    bgmFadingOut = true;
+    bgmStartTick();
+  }
+}
+function bgmLoad(id, autoplay) {
+  var t = bgmTrackById(id);
+  if (!t) return false;
+  bgmCurrentId = id;
+  bgm.volume = 0;
+  bgm.src = 'music/' + encodeURIComponent(t.file);
+  bgm.load();
+  bgmUpdateTitle();
+  bgmRefreshCoverLyrics();
+  if (autoplay) bgm.play().catch(function () {});
+  return true;
+}
+function bgmNextIdx() {
+  var n = PLAYLIST.length; if (!n) return -1;
+  var cur = bgmCurrentIdx();
+  if (bgmMode === 'shuffle' && n > 1) {
+    var r; do { r = Math.floor(Math.random() * n); } while (r === cur);
+    return r;
+  }
+  return (cur + 1) % n;
+}
+function bgmPrevIdx() {
+  var n = PLAYLIST.length; if (!n) return -1;
+  var cur = bgmCurrentIdx();
+  if (bgmMode === 'shuffle' && n > 1) {
+    var r; do { r = Math.floor(Math.random() * n); } while (r === cur);
+    return r;
+  }
+  return (cur - 1 + n) % n;
+}
+function bgmPlayNext() { var i = bgmNextIdx(); if (i >= 0) { bgmLoad(PLAYLIST[i].id, !bgmUserPaused()); renderPlaylist(); } }
+function bgmPlayPrev() { var i = bgmPrevIdx(); if (i >= 0) { bgmLoad(PLAYLIST[i].id, !bgmUserPaused()); renderPlaylist(); } }
+function bgmCycleMode() {
+  bgmMode = bgmMode === 'loop' ? 'shuffle' : (bgmMode === 'shuffle' ? 'single' : 'loop');
+  try { localStorage.setItem('bgm-mode', bgmMode); } catch (e) {}
+  bgmUpdateModeBtns();
+  bgmUpdateTitle();
+}
+bgm.addEventListener('play', function () {
+  bgmFadingOut = false;
+  bgmStartTick();
+  bgmSetState(true);
+});
+bgm.addEventListener('pause', function () {
+  if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+  bgmFadingOut = false;
+  bgmSetState(false);
+});
+bgm.addEventListener('ended', function () {
+  if (bgmMode === 'single') {
+    bgm.currentTime = 0;
+    bgm.volume = 0;
+    bgm.play().catch(function () {});
+  } else {
+    bgmPlayNext();
+  }
+});
+/* Main music button: desktop (hover) toggles playback; touch toggles the
+   expand bar open/closed (the bar's own ⏸/▶ button toggles playback,
+   the main icon only reflects the current state). */
+document.querySelectorAll('.bgm-btn').forEach(function (b) {
+  b.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (isTouch) {
+      var w = b.closest('.bgm-wrap');
+      if (w) w.classList.toggle('open');
+    } else {
+      bgmToggle();
+    }
+  });
+});
+/* Expand-bar buttons (shared by the topbar and mobile copies). */
+document.querySelectorAll('.bgm-bar-play').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); bgmToggle(); }); });
+document.querySelectorAll('.bgm-bar-mode').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); bgmCycleMode(); }); });
+document.querySelectorAll('.bgm-bar-prev').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); bgmPlayPrev(); }); });
+document.querySelectorAll('.bgm-bar-next').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); bgmPlayNext(); }); });
+document.querySelectorAll('.bgm-bar-list').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); showPlaylistModal(b); }); });
+/* Touch: tapping outside any music wrap closes an open bar. */
+document.addEventListener('pointerdown', function (e) {
+  if (!isTouch) return;
+  if (!e.target.closest || !e.target.closest('.bgm-wrap')) {
+    document.querySelectorAll('.bgm-wrap.open').forEach(function (w) { w.classList.remove('open'); });
+  }
+});
+/* Autoplay: browsers block audible autoplay without a user gesture.
+   Best-effort trick: start muted (always allowed), then unmute shortly
+   after — Chrome lets the unmute through in most cases. If the browser
+   blocks the unmute, pause again so the first-tap unlock below can
+   start it audibly. */
+function bgmIsAudible() { return !bgm.paused && !bgm.muted; }
+function bgmTryAutoplay() {
+  if (bgmUserPaused()) return;
+  if (bgmIsAudible()) return;
+  if (!bgm.paused) { bgm.muted = false; return; }
+  bgm.muted = true;
+  var p = bgm.play();
+  if (p && p.then) {
+    p.then(function () {
+      setTimeout(function () {
+        bgm.muted = false;
+        setTimeout(function () {
+          if (bgm.muted) { bgm.pause(); bgm.muted = false; }
+        }, 300);
+      }, 600);
+    }).catch(function () { bgm.muted = false; });
+  } else {
+    bgm.muted = false;
+  }
+}
+bgmTryAutoplay();
+/* Unlock on first interaction: if autoplay was blocked (e.g. already
+   logged in, no gesture yet), the first tap/click anywhere starts the
+   music audibly. Retries on each pointerdown until it succeeds. */
+function bgmUnlock() {
+  if (bgmUserPaused()) return;
+  if (bgmIsAudible()) { document.removeEventListener('pointerdown', bgmUnlock); return; }
+  if (bgm.paused) {
+    bgm.play().then(function () {
+      bgm.muted = false;
+      if (bgmIsAudible()) document.removeEventListener('pointerdown', bgmUnlock);
+    }).catch(function () {});
+  } else if (bgm.muted) {
+    bgm.muted = false;
+    if (bgmIsAudible()) document.removeEventListener('pointerdown', bgmUnlock);
+  }
+}
+document.addEventListener('pointerdown', bgmUnlock);
+/* Keyboard shortcut: Space toggles play/pause. Ignored while typing in a
+   form field or when a button/link is focused, so it never hijacks text
+   input or keyboard activation. */
+document.addEventListener('keydown', function (e) {
+  if (e.code !== 'Space' && e.key !== ' ') return;
+  var t = e.target;
+  if (!t) return;
+  var tag = t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A' || t.isContentEditable) return;
+  e.preventDefault();
+  bgmToggle();
+});
+/* Load the playlist, then point the audio at the first track. */
+function loadPlaylist() {
+  return fetch('/api/music', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (d) {
+      PLAYLIST = d.tracks || [];
+      if (PLAYLIST.length && !bgmTrackById(bgmCurrentId)) {
+        bgmLoad(PLAYLIST[0].id, false);
+        bgmTryAutoplay();
+      }
+      renderPlaylist();
+    })
+    .catch(function () {
+      // No fallback track: the playlist comes from /api/music. A hardcoded
+      // song would leak real values on live or point at a nonexistent file
+      // on a fresh install, so leave the list empty when the API fails.
+      renderPlaylist();
+    });
+}
+loadPlaylist();
+bgmUpdateModeBtns();
+bgmSetState(false);
+
+/* ---- floating cover + scrolling lyrics (Phase 1) ----
+   Cover lives inside the bgm-bar, so it only shows when the bar does
+   (hover on desktop, tap on touch). Lyrics live in a separate floating
+   panel, persistent while enabled (default on). Priority: embedded
+   tags in the file (jsmediatags: APIC cover + USLT lyrics) first, then
+   the configured online source — then nothing (placeholder / 暂无歌词). API results are cached in
+   localStorage per artist+title; the cache never leaves the browser. */
+var lyricsEnabled = true;
+try { lyricsEnabled = localStorage.getItem('bgm-lyrics-enabled') !== '0'; } catch (e) {}
+var lyricsSource = 'online';
+try { lyricsSource = localStorage.getItem('bgm-lyrics-source') || 'online'; } catch (e) {}
+if (['online', 'local'].indexOf(lyricsSource) < 0) lyricsSource = 'online';
+var curLyricsReq = 0;
+var lyricLines = [];
+var lyricSynced = false;
+var lyricActiveIdx = -1;
+function normStr(s) {
+  return String(s || '').toLowerCase().replace(/[\s\p{P}]/gu, '');
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function curTrackMeta() {
+  var t = bgmTrackById(bgmCurrentId);
+  if (!t) return null;
+  var artist = (t.artist || '').trim();
+  var title = (t.name || '').trim();
+  if (!artist || !title) {
+    var base = (t.file || '').replace(/\.[^.]+$/, '');
+    var m = base.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    if (m) { if (!artist) artist = m[1].trim(); if (!title) title = m[2].trim(); }
+  }
+  if (!title) title = (t.file || '').replace(/\.[^.]+$/, '');
+  return { artist: artist, title: title, file: t.file };
+}
+/* Parse LRC text into [{t, text}]. Timestamped lines give synced
+   scrolling; plain lines are shown as a static list. Metadata tags
+   ([ti:], [ar:], [offset:], …) and the trailing base64 blob are skipped. */
+function parseLrc(text) {
+  var lines = [];
+  var synced = false;
+  String(text || '').split(/\r?\n/).forEach(function (raw) {
+    var line = raw.replace(/^\uFEFF/, '').trim();
+    if (!line) return;
+    if (/^\[(ti|ar|al|by|offset|ver|kuwo|awlrc)[^\]]*\]/i.test(line)) return;
+    var times = [];
+    var txt = line.replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g, function (_, m, s, f) {
+      times.push((+m) * 60 + (+s) + (f ? (+('0.' + f)) : 0));
+      return '';
+    }).trim();
+    if (times.length) {
+      synced = true;
+      times.forEach(function (sec) { lines.push({ t: sec, text: txt }); });
+    } else if (!/^\[[^\]]+\]/.test(line)) {
+      lines.push({ t: -1, text: line });
+    }
+  });
+  lines.sort(function (a, b) { return a.t - b.t; });
+  if (synced) lines = lines.filter(function (ln) { return ln.t >= 0; });
+  return { lines: lines, synced: synced };
+}
+/* Read embedded cover (APIC) + lyrics (USLT) + tags from the audio file.
+   jsmediatags fetches only the tag bytes (range request). */
+function readEmbedded(fileUrl, cb) {
+  if (typeof jsmediatags === 'undefined') { cb({}); return; }
+  /* jsmediatags only accepts absolute URLs (its URL reader requires a
+     scheme like http://); a relative path finds no reader. */
+  var absUrl = fileUrl;
+  try { absUrl = new URL(fileUrl, window.location.href).href; } catch (e) {}
+  try {
+    jsmediatags.read(absUrl, {
+      onSuccess: function (tag) {
+        var tg = tag.tags || {};
+        var out = {};
+        if (tg.picture && tg.picture.data && tg.picture.data.length) {
+          try {
+            var bytes = tg.picture.data;
+            var b64 = '';
+            var CH = 0x8000;
+            for (var i = 0; i < bytes.length; i += CH) {
+              b64 += String.fromCharCode.apply(null, bytes.slice(i, i + CH));
+            }
+            out.coverUrl = 'data:' + (tg.picture.format || 'image/jpeg') + ';base64,' + btoa(b64);
+          } catch (e) {}
+        }
+        /* USLT comes back as {language, descriptor, lyrics} — take the
+           text field, not String() of the object. */
+        if (tg.lyrics) {
+          var ly = tg.lyrics;
+          out.lyricsText = (ly && typeof ly === 'object') ? (ly.lyrics || '') : String(ly);
+        }
+        if (tg.title) out.title = String(tg.title);
+        if (tg.artist) out.artist = String(tg.artist);
+        cb(out);
+      },
+      onError: function () { cb({}); }
+    });
+  } catch (e) { cb({}); }
+}
+/* Online lyrics: exact match first, then fuzzy search (prefer same artist). */
+function fetchLyricsOnline(artist, title, cb) {
+  var base = 'https://lrclib.net/api';
+  var q = '?artist_name=' + encodeURIComponent(artist) + '&track_name=' + encodeURIComponent(title);
+  fetch(base + '/get' + q).then(function (r) {
+    if (!r.ok) throw new Error('not found');
+    return r.json();
+  }).then(function (d) {
+    cb((d && (d.syncedLyrics || d.plainLyrics)) || null);
+  }).catch(function () {
+    fetch(base + '/search?track_name=' + encodeURIComponent(title) + (artist ? '&artist_name=' + encodeURIComponent(artist) : ''))
+      .then(function (r) { return r.json(); })
+      .then(function (arr) {
+        var pick = null;
+        if (arr && arr.length) {
+          var wantA = normStr(artist);
+          for (var i = 0; i < arr.length; i++) {
+            if (wantA && normStr(arr[i].artistName) === wantA) { pick = arr[i]; break; }
+          }
+          if (!pick) pick = arr[0];
+        }
+        cb(pick ? (pick.syncedLyrics || pick.plainLyrics || null) : null);
+      })
+      .catch(function () { cb(null); });
+  });
+}
+/* Online cover: fuzzy search, but only accept an exact trackName match
+   (and an artist match when we know the artist) — a wrong cover is
+   worse than no cover. Artwork is upscaled from 100px to 600px. */
+function fetchCoverOnline(artist, title, cb) {
+  var q = 'https://itunes.apple.com/search?term=' + encodeURIComponent((artist ? artist + ' ' : '') + title) + '&media=music&entity=song&limit=5';
+  fetch(q).then(function (r) { return r.json(); }).then(function (d) {
+    var res = d.results || [];
+    var wantT = normStr(title), wantA = normStr(artist);
+    var hit = null;
+    for (var i = 0; i < res.length; i++) {
+      var r = res[i];
+      if (normStr(r.trackName) !== wantT) continue;
+      var a = normStr(r.artistName);
+      if (!wantA || a === wantA || a.indexOf(wantA) >= 0 || wantA.indexOf(a) >= 0) { hit = r; break; }
+    }
+    cb(hit && hit.artworkUrl100 ? hit.artworkUrl100.replace('100x100', '600x600') : null);
+  }).catch(function () { cb(null); });
+}
+function setCover(url) {
+  document.querySelectorAll('.bgm-cover-img').forEach(function (img) {
+    if (url) { img.src = url; img.classList.remove('hidden'); }
+    else { img.removeAttribute('src'); img.classList.add('hidden'); }
+  });
+  document.querySelectorAll('.bgm-cover-ph').forEach(function (ph) {
+    ph.classList.toggle('hidden', !!url);
+  });
+}
+/* A failed cover URL (e.g. a dead link) falls back to the
+   placeholder instead of showing a broken image. */
+document.querySelectorAll('.bgm-cover-img').forEach(function (img) {
+  img.addEventListener('error', function () {
+    img.classList.add('hidden');
+    var ph = img.parentElement ? img.parentElement.querySelector('.bgm-cover-ph') : null;
+    if (ph) ph.classList.remove('hidden');
+  });
+});
+function updateTrackName() {
+  var t = bgmTrackById(bgmCurrentId);
+  var label = t ? (t.name + (t.artist ? ' - ' + t.artist : '')) : '背景音乐';
+  document.querySelectorAll('.bgm-cover-name').forEach(function (el) { el.textContent = label; });
+  var lt = document.getElementById('lyrics-title');
+  if (lt) lt.textContent = label;
+}
+function setLyrics(text) {
+  var parsed = parseLrc(text || '');
+  lyricLines = parsed.lines;
+  lyricSynced = parsed.synced;
+  lyricActiveIdx = -1;
+  var el = document.getElementById('lyrics-lines');
+  if (!el) return;
+  if (!lyricLines.length) {
+    el.innerHTML = '<div class="lyr-empty">暂无歌词</div>';
+    return;
+  }
+  var html = '';
+  lyricLines.forEach(function (ln, i) {
+    html += '<div class="lyr-line" data-i="' + i + '">' + esc(ln.text || '　') + '</div>';
+  });
+  el.innerHTML = html;
+  syncLyricsLine();
+}
+function centerActiveLyric(instant) {
+  var box = document.getElementById('lyrics-lines');
+  if (!box) return;
+  var cur = box.querySelector('.lyr-line.active');
+  if (!cur) return;
+  /* instant for expand/collapse re-centering (a smooth scroll would delay
+     the height transition); smooth only for the line change during playback */
+  cur.scrollIntoView({ block: 'center', behavior: instant ? 'auto' : 'smooth' });
+}
+function syncLyricsLine() {
+  if (!lyricSynced || !lyricLines.length) return;
+  var t = bgm.currentTime || 0;
+  var idx = -1;
+  for (var i = 0; i < lyricLines.length; i++) {
+    if (lyricLines[i].t <= t) idx = i; else break;
+  }
+  if (idx === lyricActiveIdx) return;
+  lyricActiveIdx = idx;
+  var box = document.getElementById('lyrics-lines');
+  if (!box) return;
+  var prev = box.querySelector('.lyr-line.active');
+  if (prev) prev.classList.remove('active');
+  if (idx >= 0) {
+    var cur = box.children[idx];
+    if (cur) {
+      cur.classList.add('active');
+      centerActiveLyric();
+    }
+  }
+}
+function applyLyricsVisibility() {
+  var el = document.getElementById('lyrics-float');
+  if (!el) return;
+  var appVisible = true;
+  var app = document.getElementById('app-view');
+  if (app) appVisible = !app.classList.contains('hidden');
+  el.classList.toggle('hidden', !lyricsEnabled || !appVisible);
+  if (lyricsEnabled && appVisible) lyrRestorePos();
+}
+/* Refresh cover + lyrics for the current track. force skips the cache
+   (used by 重新识别 and by switching source). */
+function bgmRefreshCoverLyrics(force) {
+  updateTrackName();
+  applyLyricsVisibility();
+  var meta = curTrackMeta();
+  if (!meta) { setCover(null); setLyrics(null); return; }
+  var reqId = ++curLyricsReq;
+  readEmbedded('music/' + encodeURIComponent(meta.file), function (emb) {
+    if (reqId !== curLyricsReq) return;
+    var artist = emb.artist || meta.artist;
+    var title = emb.title || meta.title;
+    if (emb.coverUrl) {
+      setCover(emb.coverUrl);
+    } else if (lyricsSource === 'local') {
+      setCover(null);
+    } else {
+      var ck = 'bgm-cov:' + normStr(artist) + '|' + normStr(title);
+      var cached = force ? null : lsGet(ck);
+      if (cached !== null && cached !== undefined) {
+        setCover(cached === '∅' ? null : cached);
+      } else {
+        fetchCoverOnline(artist, title, function (cu) {
+          if (reqId !== curLyricsReq) return;
+          lsSet(ck, cu || '∅');
+          setCover(cu);
+        });
+      }
+    }
+    if (emb.lyricsText) {
+      setLyrics(emb.lyricsText);
+    } else if (lyricsSource === 'local') {
+      setLyrics(null);
+    } else {
+      var lk = 'bgm-lyr:online:' + normStr(artist) + '|' + normStr(title);
+      var lcached = force ? null : lsGet(lk);
+      if (lcached !== null && lcached !== undefined) {
+        setLyrics(lcached === '∅' ? null : lcached);
+      } else {
+        fetchLyricsOnline(artist, title, function (ltxt) {
+          if (reqId !== curLyricsReq) return;
+          lsSet(lk, ltxt || '∅');
+          setLyrics(ltxt);
+        });
+      }
+    }
+  });
+}
+/* ---- lyrics settings modal ---- */
+var lyricsModal = document.getElementById('lyrics-settings-modal');
+var lyricsModalCard = document.getElementById('lyrics-settings-modal-card');
+function showLyricsSettings(btn) {
+  var en = document.getElementById('lyr-set-enabled');
+  if (en) en.checked = lyricsEnabled;
+  var src = document.getElementById('lyr-set-source');
+  if (src) src.value = lyricsSource;
+  modalShow(lyricsModal, lyricsModalCard, btn);
+}
+function hideLyricsSettings() { modalHide(lyricsModal, lyricsModalCard, null); }
+if (lyricsModal) lyricsModal.addEventListener('click', function (e) { if (e.target === lyricsModal) hideLyricsSettings(); });
+var lyrCloseBtn = document.getElementById('lyr-set-close');
+if (lyrCloseBtn) lyrCloseBtn.addEventListener('click', hideLyricsSettings);
+var lyrEn = document.getElementById('lyr-set-enabled');
+if (lyrEn) lyrEn.addEventListener('change', function (e) {
+  lyricsEnabled = !!e.target.checked;
+  lsSet('bgm-lyrics-enabled', lyricsEnabled ? '1' : '0');
+  applyLyricsVisibility();
+});
+var lyrSrc = document.getElementById('lyr-set-source');
+if (lyrSrc) lyrSrc.addEventListener('change', function (e) {
+  var v = e.target.value;
+  if (['online', 'local'].indexOf(v) < 0) v = 'online';
+  lyricsSource = v;
+  lsSet('bgm-lyrics-source', v);
+  bgmRefreshCoverLyrics(true);
+});
+var lyrRefetch = document.getElementById('lyr-set-refetch');
+if (lyrRefetch) lyrRefetch.addEventListener('click', function () {
+  bgmRefreshCoverLyrics(true);
+  showToast('正在重新识别…');
+});
+/* Lyrics settings button in both expand bars. */
+document.querySelectorAll('.bgm-bar-lyrics').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); showLyricsSettings(b); }); });
+/* Close button on the floating lyrics panel turns lyrics off. */
+var lyrFloat = document.getElementById('lyrics-float');
+var lyrFloatClose = document.getElementById('lyrics-close');
+if (lyrFloatClose) lyrFloatClose.addEventListener('click', function (e) {
+  e.stopPropagation(); // never toggles the pinned view
+  lyricsEnabled = false;
+  lsSet('bgm-lyrics-enabled', '0');
+  if (lyrFloat) lyrFloat.classList.remove('expanded');
+  applyLyricsVisibility();
+});
+/* Drag the lyrics panel (mouse + touch) and click/tap to toggle the pinned
+   5-line view (1 line by default). A pointer that moves <= 6px is a click;
+   more is a drag (position saved to localStorage, restored on load). Hover
+   (mouse only, via CSS) expands temporarily without pinning. */
+var lyrDrag = null; /* {pointerId, startX, startY, offX, offY, dragging} */
+var lyrPosRestored = false;
+function lyrClampPos(left, top) {
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var r = lyrFloat.getBoundingClientRect();
+  var w = r.width || 320, h = r.height || 68;
+  var minL = -(w - 80), maxL = vw - 80;
+  var minT = 0, maxT = Math.max(0, vh - 60);
+  return { left: Math.min(Math.max(left, minL), maxL), top: Math.min(Math.max(top, minT), maxT) };
+}
+function lyrApplyPos(left, top) {
+  var r = lyrFloat.getBoundingClientRect();
+  var p = lyrClampPos(left, top);
+  lyrFloat.style.width = r.width + 'px'; /* lock width so clearing right does not shrink it */
+  lyrFloat.style.left = p.left + 'px';
+  lyrFloat.style.top = p.top + 'px';
+  lyrFloat.style.right = 'auto';
+  lyrFloat.style.bottom = 'auto';
+}
+function lyrSavePos() {
+  try {
+    var r = lyrFloat.getBoundingClientRect();
+    lsSet('bgm-lyrics-pos', JSON.stringify({ left: Math.round(r.left), top: Math.round(r.top) }));
+  } catch (e) {}
+}
+function lyrRestorePos() {
+  if (lyrPosRestored || !lyrFloat) return;
+  lyrPosRestored = true;
+  var raw = null;
+  try { raw = localStorage.getItem('bgm-lyrics-pos'); } catch (e) {}
+  if (!raw) return;
+  try {
+    var p = JSON.parse(raw);
+    if (typeof p.left === 'number' && typeof p.top === 'number') lyrApplyPos(p.left, p.top);
+  } catch (e) {}
+}
+if (lyrFloat) {
+  lyrFloat.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('.lyr-close')) return; /* never drag from the × */
+    var r = lyrFloat.getBoundingClientRect();
+    lyrDrag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+      offX: e.clientX - r.left, offY: e.clientY - r.top, dragging: false };
+    try { lyrFloat.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  lyrFloat.addEventListener('pointermove', function (e) {
+    if (!lyrDrag || e.pointerId !== lyrDrag.pointerId) return;
+    var dx = e.clientX - lyrDrag.startX, dy = e.clientY - lyrDrag.startY;
+    if (!lyrDrag.dragging) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 6) return; /* still a click so far */
+      lyrDrag.dragging = true;
+      lyrFloat.classList.add('dragging');
+    }
+    if (e.cancelable) e.preventDefault();
+    lyrApplyPos(e.clientX - lyrDrag.offX, e.clientY - lyrDrag.offY);
+  });
+  function lyrEndDrag(e) {
+    if (!lyrDrag || (e && e.pointerId !== lyrDrag.pointerId)) return;
+    var wasDrag = lyrDrag.dragging;
+    lyrDrag = null;
+    lyrFloat.classList.remove('dragging');
+    if (wasDrag) { lyrSavePos(); return; } /* drag: move only, do NOT toggle */
+    var expanding = !lyrFloat.classList.contains('expanded');
+    lyrFloat.classList.toggle('expanded');
+    /* expand: smooth scroll to center; collapse: instant (keeps it snappy) */
+    centerActiveLyric(!expanding);
+  }
+  lyrFloat.addEventListener('pointerup', lyrEndDrag);
+  lyrFloat.addEventListener('pointercancel', lyrEndDrag);
+  lyrFloat.addEventListener('mouseenter', function () { centerActiveLyric(false); });
+  lyrFloat.addEventListener('mouseleave', function () {
+    if (!lyrFloat.classList.contains('expanded')) centerActiveLyric(true);
+  });
+  var lyrLines = document.getElementById('lyrics-lines');
+  if (lyrLines) lyrLines.addEventListener('transitionend', function (e) {
+    if (e.propertyName === 'max-height') {
+      /* final correction once the viewport is at its final height, so the
+         current line lands exactly centered in the 5-line view */
+      centerActiveLyric(!lyrFloat.classList.contains('expanded') && !lyrFloat.matches(':hover'));
+      /* after expanding/collapsing, re-clamp so a dragged panel cannot end up off-screen */
+      if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
+    }
+  });
+  window.addEventListener('resize', function () {
+    if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
+  });
+}
+/* Keep the highlighted lyric in step after a seek. */
+bgm.addEventListener('seeked', syncLyricsLine);
+
+function makeQR(elId, text) {
+  try {
+    var qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    document.getElementById(elId).innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+  } catch (e) {
+    document.getElementById(elId).innerHTML = '<span class="err">二维码生成失败</span>';
+  }
+}
+
+function renderLinks() {
+  if (!LINKS) return;
+  document.getElementById('link-vless').textContent = LINKS.vless;
+  document.getElementById('link-hy2').textContent = LINKS.hy2;
+}
+
+function renderD1Links() {
+  if (!LINKS1) return;
+  document.getElementById('link-d1vless').textContent = LINKS1.vless;
+  document.getElementById('link-d1hy2').textContent = LINKS1.hy2;
+}
+
+// QR modal: scales up from the button to the center (with blur), dims the background;
+// click anywhere scales it back and restores the background.
+var qrModal = document.getElementById('qr-modal');
+var qrModalCard = document.getElementById('qr-modal-card');
+var qrModalQR = document.getElementById('qr-modal-qr');
+var qrModalTitle = document.getElementById('qr-modal-title');
+var qrSrcBtn = null;
+function qrCardCenter(){
+  return { x: (window.innerWidth - qrModalCard.offsetWidth) / 2, y: (window.innerHeight - qrModalCard.offsetHeight) / 2 };
+}
+function qrCardAtBtn(btn){
+  var r = btn.getBoundingClientRect();
+  return { x: r.left + r.width / 2 - qrModalCard.offsetWidth / 2, y: r.top + r.height / 2 - qrModalCard.offsetHeight / 2 };
+}
+function showQR(linkId, title, btn){
+  var text = document.getElementById(linkId).textContent.trim();
+  if (!text || text === '加载中…') return;
+  if (!title && btn && btn.closest) {
+    var card = btn.closest('.card');
+    var h = card ? card.querySelector('h2') : null;
+    if (h) title = h.textContent;
+  }
+  makeQR('qr-modal-qr', text);
+  qrModalTitle.textContent = title;
+  qrSrcBtn = btn;
+  var from = qrCardAtBtn(btn);
+  var to = qrCardCenter();
+  qrModalCard.style.transition = 'none';
+  qrModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  qrModalCard.style.filter = 'blur(8px)';
+  qrModalCard.style.opacity = '0';
+  qrModal.classList.add('open');
+  void qrModalCard.offsetWidth;
+  qrModalCard.style.transition = 'transform .35s ease, filter .35s ease, opacity .35s ease';
+  qrModalCard.style.transform = 'translate(' + to.x + 'px,' + to.y + 'px) scale(1)';
+  qrModalCard.style.filter = 'blur(0px)';
+  qrModalCard.style.opacity = '1';
+}
+function hideQR(){
+  if (!qrModal.classList.contains('open')) return;
+  var from = qrSrcBtn ? qrCardAtBtn(qrSrcBtn) : null;
+  qrModalCard.style.transition = 'transform .3s ease, filter .3s ease, opacity .3s ease';
+  if (from){
+    qrModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  }
+  qrModalCard.style.filter = 'blur(8px)';
+  qrModalCard.style.opacity = '0';
+  qrModal.classList.remove('open');
+}
+qrModal.addEventListener('click', hideQR);
+
+/* ---- confirm modal: same pop-in / retract animation as the QR modal,
+   but it only closes via 取消 (or 确定) — clicking the backdrop does nothing. ---- */
+var confirmModal = document.getElementById('confirm-modal');
+var confirmModalCard = document.getElementById('confirm-modal-card');
+var confirmModalTitle = document.getElementById('confirm-modal-title');
+var confirmModalBody = document.getElementById('confirm-modal-body');
+var confirmModalInput = document.getElementById('confirm-modal-input');
+var confirmSrcBtn = null;
+var confirmOnOk = null;
+function confirmCardCenter(){
+  return { x: (window.innerWidth - confirmModalCard.offsetWidth) / 2, y: (window.innerHeight - confirmModalCard.offsetHeight) / 2 };
+}
+function confirmCardAtBtn(btn){
+  var r = btn.getBoundingClientRect();
+  return { x: r.left + r.width / 2 - confirmModalCard.offsetWidth / 2, y: r.top + r.height / 2 - confirmModalCard.offsetHeight / 2 };
+}
+/* opts: { input: true, inputType: 'text'|'password', inputPlaceholder: '', inputValue: '' }.
+   When input is set, the 确定 callback receives the input value. */
+function showConfirm(title, body, btn, onOk, opts){
+  confirmModalTitle.textContent = title;
+  confirmModalBody.textContent = body;
+  confirmSrcBtn = btn;
+  confirmOnOk = onOk;
+  var multiBox = document.getElementById('confirm-modal-inputs');
+  if (opts && opts.inputs){
+    confirmModalInput.classList.add('hidden');
+    confirmModalInput.value = '';
+    multiBox.innerHTML = '';
+    opts.inputs.forEach(function (it) {
+      var field = document.createElement('div');
+      field.className = 'confirm-modal-field';
+      var lab = document.createElement('label');
+      lab.textContent = it.label || '';
+      var inp = document.createElement('input');
+      inp.type = it.type || 'text';
+      if (it.type === 'checkbox') {
+        field.classList.add('checkbox-field');
+        inp.checked = !!it.value;
+        field.appendChild(inp);
+        field.appendChild(lab);
+      } else {
+        inp.placeholder = it.placeholder || '';
+        inp.value = it.value || '';
+        field.appendChild(lab);
+        field.appendChild(inp);
+      }
+      multiBox.appendChild(field);
+    });
+    multiBox.classList.remove('hidden');
+  } else if (opts && opts.input){
+    multiBox.classList.add('hidden');
+    multiBox.innerHTML = '';
+    confirmModalInput.type = opts.inputType || 'text';
+    confirmModalInput.placeholder = opts.inputPlaceholder || '';
+    confirmModalInput.value = opts.inputValue || '';
+    confirmModalInput.classList.remove('hidden');
+  } else {
+    multiBox.classList.add('hidden');
+    multiBox.innerHTML = '';
+    confirmModalInput.classList.add('hidden');
+    confirmModalInput.value = '';
+  }
+  var from = confirmCardAtBtn(btn);
+  var to = confirmCardCenter();
+  confirmModalCard.style.transition = 'none';
+  confirmModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  confirmModalCard.style.filter = 'blur(8px)';
+  confirmModalCard.style.opacity = '0';
+  confirmModal.classList.add('open');
+  void confirmModalCard.offsetWidth;
+  confirmModalCard.style.transition = 'transform .35s ease, filter .35s ease, opacity .35s ease';
+  confirmModalCard.style.transform = 'translate(' + to.x + 'px,' + to.y + 'px) scale(1)';
+  confirmModalCard.style.filter = 'blur(0px)';
+  confirmModalCard.style.opacity = '1';
+  if (opts && opts.input) setTimeout(function(){ confirmModalInput.focus(); }, 350);
+}
+function hideConfirm(){
+  if (!confirmModal.classList.contains('open')) return;
+  var from = confirmSrcBtn ? confirmCardAtBtn(confirmSrcBtn) : null;
+  confirmModalCard.style.transition = 'transform .3s ease, filter .3s ease, opacity .3s ease';
+  if (from){
+    confirmModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  }
+  confirmModalCard.style.filter = 'blur(8px)';
+  confirmModalCard.style.opacity = '0';
+  confirmModal.classList.remove('open');
+  confirmSrcBtn = null;
+  confirmOnOk = null;
+}
+document.getElementById('confirm-modal-cancel').addEventListener('click', hideConfirm);
+document.getElementById('confirm-modal-ok').addEventListener('click', function(){
+  var cb = confirmOnOk;
+  var multiBox = document.getElementById('confirm-modal-inputs');
+  var val;
+  if (multiBox && !multiBox.classList.contains('hidden')) {
+    val = [];
+    multiBox.querySelectorAll('.confirm-modal-field input').forEach(function (inp) { val.push(inp.type === 'checkbox' ? inp.checked : inp.value); });
+  } else {
+    val = confirmModalInput.classList.contains('hidden') ? undefined : confirmModalInput.value;
+  }
+  hideConfirm();
+  if (cb) cb(val);
+});
+// Deliberately no backdrop-click handler: only 取消 (or 确定) closes this modal.
+
+/* ---- registration modal: same pop-in / retract animation as the confirm
+   modal, but it only closes via 确认已复制 — and that button stays disabled
+   until the copy succeeds. Shows once per added user. ---- */
+var regModal = document.getElementById('reg-modal');
+var regModalCard = document.getElementById('reg-modal-card');
+var regModalTitle = document.getElementById('reg-modal-title');
+var regModalBody = document.getElementById('reg-modal-body');
+var regModalCopy = document.getElementById('reg-modal-copy');
+var regModalOk = document.getElementById('reg-modal-ok');
+var regSrcBtn = null;
+var regCopied = false;
+function regCardCenter(){
+  return { x: (window.innerWidth - regModalCard.offsetWidth) / 2, y: (window.innerHeight - regModalCard.offsetHeight) / 2 };
+}
+function regCardAtBtn(btn){
+  var r = btn.getBoundingClientRect();
+  return { x: r.left + r.width / 2 - regModalCard.offsetWidth / 2, y: r.top + r.height / 2 - regModalCard.offsetHeight / 2 };
+}
+function showRegModal(username, token, regLink, btn){
+  regSrcBtn = btn;
+  lastRegUser = username;
+  lastRegLink = regLink;
+  regCopied = false;
+  regModalTitle.textContent = '用户 ' + username + ' 已添加';
+  regModalBody.innerHTML = '用户名：<b>' + esc(username) + '</b><br>'
+    + '一次性口令：<b id="reg-token-val" style="font-family:monospace;">' + esc(token) + '</b><br>'
+    + '登录网址：' + esc(location.origin + location.pathname) + '<br>'
+    + '一键注册链接：<a href="' + esc(regLink) + '" target="_blank" style="color:#a5d6ff; word-break:break-all;">' + esc(regLink) + '</a><br>'
+    + '<span style="color:#8b98a5;">点链接直接进首次登录页，用户名和口令都已填好；也可以手动登录后用口令设置密码。口令只用一次，设置完成后失效。</span>';
+  regModalCopy.disabled = false;
+  regModalCopy.textContent = '复制注册信息';
+  regModalOk.disabled = true;
+  var from = regCardAtBtn(btn);
+  var to = regCardCenter();
+  regModalCard.style.transition = 'none';
+  regModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  regModalCard.style.filter = 'blur(8px)';
+  regModalCard.style.opacity = '0';
+  regModal.classList.add('open');
+  void regModalCard.offsetWidth;
+  regModalCard.style.transition = 'transform .35s ease, filter .35s ease, opacity .35s ease';
+  regModalCard.style.transform = 'translate(' + to.x + 'px,' + to.y + 'px) scale(1)';
+  regModalCard.style.filter = 'blur(0px)';
+  regModalCard.style.opacity = '1';
+}
+function hideRegModal(){
+  if (!regModal.classList.contains('open')) return;
+  var from = regSrcBtn ? regCardAtBtn(regSrcBtn) : null;
+  regModalCard.style.transition = 'transform .3s ease, filter .3s ease, opacity .3s ease';
+  if (from){
+    regModalCard.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  }
+  regModalCard.style.filter = 'blur(8px)';
+  regModalCard.style.opacity = '0';
+  regModal.classList.remove('open');
+  regSrcBtn = null;
+}
+regModalCopy.addEventListener('click', function(){
+  var tokenEl = document.getElementById('reg-token-val');
+  var token = tokenEl ? tokenEl.textContent : '';
+  var text = '面板登录网址：' + location.origin + location.pathname + '\n'
+    + '用户名：' + lastRegUser + '\n'
+    + '一次性口令：' + token + '\n'
+    + '一键注册链接：' + lastRegLink;
+  copyStr(text, regModalCopy, function(ok){
+    if (ok) { regCopied = true; regModalOk.disabled = false; }
+  });
+});
+regModalOk.addEventListener('click', function(){
+  if (!regCopied) return;
+  hideRegModal();
+});
+// Deliberately no backdrop-click handler: only 确认已复制 (after copying) closes this modal.
+
+/* ---- generic FLIP modal helpers (same animation as the confirm modal):
+   open: scale up from the triggering button to the center + blur + dim;
+   close: shrink back to the button + blur. Used by the playlist and
+   servers modals. ---- */
+function modalCardCenter(card) {
+  return { x: (window.innerWidth - card.offsetWidth) / 2, y: (window.innerHeight - card.offsetHeight) / 2 };
+}
+function modalCardAtBtn(card, btn) {
+  var r = btn.getBoundingClientRect();
+  return { x: r.left + r.width / 2 - card.offsetWidth / 2, y: r.top + r.height / 2 - card.offsetHeight / 2 };
+}
+function modalShow(modal, card, btn) {
+  var from = modalCardAtBtn(card, btn);
+  var to = modalCardCenter(card);
+  card.style.transition = 'none';
+  card.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  card.style.filter = 'blur(8px)';
+  card.style.opacity = '0';
+  modal.classList.add('open');
+  void card.offsetWidth;
+  card.style.transition = 'transform .35s ease, filter .35s ease, opacity .35s ease';
+  card.style.transform = 'translate(' + to.x + 'px,' + to.y + 'px) scale(1)';
+  card.style.filter = 'blur(0px)';
+  card.style.opacity = '1';
+}
+function modalHide(modal, card, btn) {
+  if (!modal.classList.contains('open')) return;
+  var from = btn ? modalCardAtBtn(card, btn) : null;
+  card.style.transition = 'transform .3s ease, filter .3s ease, opacity .3s ease';
+  if (from) card.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(0.25)';
+  card.style.filter = 'blur(8px)';
+  card.style.opacity = '0';
+  modal.classList.remove('open');
+}
+
+/* ---- playlist modal (display-type: click the backdrop to close) ---- */
+var playlistModal = document.getElementById('playlist-modal');
+var playlistModalCard = document.getElementById('playlist-modal-card');
+var playlistSrcBtn = null;
+function showPlaylistModal(btn) {
+  playlistSrcBtn = btn;
+  renderPlaylist();
+  modalShow(playlistModal, playlistModalCard, btn);
+}
+function hidePlaylistModal() {
+  modalHide(playlistModal, playlistModalCard, playlistSrcBtn);
+  playlistSrcBtn = null;
+}
+playlistModal.addEventListener('click', function (e) { if (e.target === playlistModal) hidePlaylistModal(); });
+document.getElementById('playlist-close-btn').addEventListener('click', hidePlaylistModal);
+
+/* ---- version footer + changelog modal (display-type: click the backdrop to close) ---- */
+var versionModal = document.getElementById('version-modal');
+var versionModalCard = document.getElementById('version-modal-card');
+var versionSrcBtn = null;
+function showVersionModal(btn) {
+  versionSrcBtn = btn;
+  document.getElementById('version-modal-title').textContent = PANEL_VERSION + ' 更新日志';
+  modalShow(versionModal, versionModalCard, btn);
+}
+function hideVersionModal() {
+  modalHide(versionModal, versionModalCard, versionSrcBtn);
+  versionSrcBtn = null;
+}
+versionModal.addEventListener('click', function (e) { if (e.target === versionModal) hideVersionModal(); });
+document.getElementById('version-modal-close').addEventListener('click', hideVersionModal);
+document.getElementById('version-btn').addEventListener('click', function () { showVersionModal(this); });
+document.getElementById('version-btn').textContent = '版本 ' + PANEL_VERSION;
+
+function renderPlaylist() {
+  var list = document.getElementById('playlist-list');
+  if (!list) return;
+  var isAdmin = !!(ME && ME.role === 'admin');
+  document.getElementById('playlist-drop').classList.toggle('hidden', !isAdmin);
+  document.getElementById('playlist-delete-btn').classList.toggle('hidden', !isAdmin);
+  if (!PLAYLIST.length) {
+    list.innerHTML = '<div class="meta">暂无音乐。' + (isAdmin ? '点击下方“上传音乐”添加。' : '') + '</div>';
+    return;
+  }
+  var html = '';
+  PLAYLIST.forEach(function (t, i) {
+    html += '<div class="pl-row' + (t.id === bgmCurrentId ? ' playing' : '') + '">'
+      + (isAdmin ? '<input type="checkbox" class="pl-check" value="' + esc(t.id) + '">' : '')
+      + '<span class="pl-name" onclick="plPlay(\'' + esc(t.id) + '\')">' + (t.id === bgmCurrentId ? '▶ ' : '') + esc(t.name) + (t.artist ? ' - ' + esc(t.artist) : '') + '</span>'
+      + (isAdmin
+        ? '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', -1)"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
+        + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', 1)"' + (i === PLAYLIST.length - 1 ? ' disabled' : '') + '>↓</button>'
+        : '')
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+function plPlay(id) {
+  bgmSetUserPaused(false);
+  if (bgmLoad(id, true)) renderPlaylist();
+}
+function plMove(id, dir) {
+  var idx = -1;
+  PLAYLIST.forEach(function (t, i) { if (t.id === id) idx = i; });
+  if (idx < 0) return;
+  var j = idx + dir;
+  if (j < 0 || j >= PLAYLIST.length) return;
+  var ids = PLAYLIST.map(function (t) { return t.id; });
+  var tmp = ids[idx]; ids[idx] = ids[j]; ids[j] = tmp;
+  // Optimistic reorder; the server is the source of truth.
+  PLAYLIST = ids.map(function (x) { return bgmTrackById(x); });
+  renderPlaylist();
+  fetch('/api/music/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids }) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      showToast('顺序已保存。');
+    })
+    .catch(function (e) { showToast('保存失败：' + e.message, true); loadPlaylist(); });
+}
+document.getElementById('playlist-delete-btn').addEventListener('click', function () {
+  var btn = this;
+  var ids = [];
+  document.querySelectorAll('.pl-check:checked').forEach(function (c) { ids.push(c.value); });
+  if (!ids.length) { showToast('请先勾选要删除的曲目。', true); return; }
+  showConfirm(
+    '确定要删除选中的 ' + ids.length + ' 首音乐吗？',
+    '删除后文件也会一并删除，正在播放的曲目会被切到下一首。',
+    btn,
+    function () {
+      fetch('/api/music/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids }) })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d && res.d.error) || '删除失败');
+          var wasPlaying = ids.indexOf(bgmCurrentId) >= 0;
+          var curIdx = bgmCurrentIdx();
+          PLAYLIST = PLAYLIST.filter(function (t) { return ids.indexOf(t.id) < 0; });
+          if (!PLAYLIST.length) {
+            bgmCurrentId = null;
+            bgm.pause();
+            bgm.removeAttribute('src');
+            bgm.load();
+            bgmSetState(false);
+          } else if (wasPlaying) {
+            var ni = Math.min(curIdx, PLAYLIST.length - 1);
+            bgmLoad(PLAYLIST[ni].id, !bgmUserPaused());
+          }
+          renderPlaylist();
+          showToast('已删除 ' + ids.length + ' 首。');
+        })
+        .catch(function (e) { showToast('删除失败：' + e.message, true); });
+    }
+  );
+});
+function plUploadFiles(files) {
+  var list = [];
+  for (var i = 0; i < files.length; i++) list.push(files[i]);
+  if (!list.length) return;
+  var done = 0, failed = 0;
+  function next() {
+    if (!list.length) {
+      loadPlaylist();
+      showToast(failed ? ('已上传 ' + done + ' 首，' + failed + ' 首失败。') : ('已上传 ' + done + ' 首。'), failed > 0);
+      return;
+    }
+    var f = list.shift();
+    var fd = new FormData();
+    fd.append('file', f);
+    fetch('/api/music/upload', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) { if (res.ok && res.d.track) done++; else failed++; })
+      .catch(function () { failed++; })
+      .finally(next);
+  }
+  next();
+}
+document.getElementById('playlist-upload-btn').addEventListener('click', function () {
+  document.getElementById('playlist-file').click();
+});
+document.getElementById('playlist-file').addEventListener('change', function () {
+  plUploadFiles(this.files);
+  this.value = '';
+});
+var plDrop = document.getElementById('playlist-drop');
+plDrop.addEventListener('dragover', function (e) { e.preventDefault(); plDrop.classList.add('drag-over'); });
+plDrop.addEventListener('dragleave', function () { plDrop.classList.remove('drag-over'); });
+plDrop.addEventListener('drop', function (e) {
+  e.preventDefault();
+  plDrop.classList.remove('drag-over');
+  if (e.dataTransfer && e.dataTransfer.files) plUploadFiles(e.dataTransfer.files);
+});
+// Never let a dropped file navigate the page away.
+document.addEventListener('dragover', function (e) { e.preventDefault(); });
+document.addEventListener('drop', function (e) { e.preventDefault(); });
+
+/* ---- panel name (GET /api/config is public; POST is admin-only) ---- */
+function applyPanelName(name) {
+  document.getElementById('panel-name').textContent = name;
+  var lt = document.getElementById('login-title');
+  if (lt) lt.textContent = name;
+  document.title = name;
+}
+function loadPanelName() {
+  return fetch('/api/config', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (d) { if (d.panel_name) applyPanelName(d.panel_name); })
+    .catch(function () {});
+}
+loadPanelName();
+/* ---- servers: adaptive single/multi tabs + settings (admin) ---- */
+var currentView = 'd2';
+var SERVERS = [
+  { id: 'local', name: '示例服务器 A', type: 'local' },
+  { id: 'd1', name: '示例服务器 B', type: 'remote', host: '203.0.113.10', port: 22 },
+];
+/* ---- server order: local first, remotes in add order (servers.json order).
+   Only render order changes; servers.json storage order is untouched. ---- */
+function isLocalServer(s) {
+  if (!s) return false;
+  if (s.type === 'local') return true;
+  if (s.type) return false;          // explicit non-local type
+  if (s.host) return false;          // has a host -> remote (servers.json remotes always have one)
+  return s.id === 'local';           // typeless + hostless (e.g. user-links entries): only id 'local' counts
+}
+function sortServers(list) {
+  var arr = (list || []).slice();
+  arr.sort(function (a, b) { return (isLocalServer(a) ? 0 : 1) - (isLocalServer(b) ? 0 : 1); });
+  return arr; // Array.sort is stable: remotes keep their add order
+}
+
+function serverViewKey(s) {
+  if (s.id === 'd1') return 'd1';
+  if (s.id === 'local') return 'd2';
+  return 'remote:' + s.id;
+}
+function serverById(id) {
+  for (var i = 0; i < SERVERS.length; i++) if (SERVERS[i].id === id) return SERVERS[i];
+  return null;
+}
+/* ---- admin server names follow renames (SERVERS is the source of truth).
+   Static HTML keeps the old names only as a pre-load fallback. ---- */
+function adminServerName(id, fallback) {
+  var s = serverById(id);
+  return s ? s.name : fallback;
+}
+function d1CardTitle(kind) {
+  return kind; // node card titles show protocol only, no server name
+}
+function applyAdminServerNames() {
+  var ll = document.getElementById('nu-limit-local-label');
+  if (ll) ll.textContent = adminServerName('local', 'Debian-2') + ' 每月上限（GB，留空 = 不限）';
+  var ld = document.getElementById('nu-limit-d1-label');
+  if (ld) ld.textContent = adminServerName('d1', 'Debian-1') + ' 每月上限（GB，留空 = 不限）';
+  var t1 = document.querySelector('#card-d1vless .card-name');
+  if (t1) t1.textContent = d1CardTitle('VLESS + TLS');
+  var t2 = document.querySelector('#card-d1hy2 .card-name');
+  if (t2) t2.textContent = d1CardTitle('Hysteria 2');
+  renderD1Errors();
+}
+/* D1 failure text uses the live server name. loadAdmin() and loadServers()
+   run concurrently, so a D1 failure can land before the server list does;
+   these flags let a later rename re-render the text with the right name. */
+var d1LinksFailed = false;
+var d1StatusFailed = false;
+function renderD1Errors() {
+  var n = adminServerName('d1', 'Debian-1');
+  if (d1LinksFailed) {
+    document.getElementById('link-d1vless').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
+    document.getElementById('link-d1hy2').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
+  }
+  if (d1StatusFailed) {
+    document.getElementById('t1-note').textContent = n + ' 状态加载失败（链接与二维码不受影响）';
+  }
+}
+/* Subtitle "更新于 …": the desktop and mobile copies share class .updated.
+   The admin path sets it from /api/data; the user path sets it from the
+   user payloads (regular users never load /api/data). */
+function applyUpdated(ts) {
+  document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (ts || '—'); });
+}
+function loadServers() {
+  return fetch('/api/servers', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (d) {
+      if (d.servers && d.servers.length) SERVERS = d.servers;
+      renderServerTabs();
+      applyAdminServerNames();
+      return SERVERS;
+    })
+    .catch(function () { renderServerTabs(); return SERVERS; });
+}
+function renderServerTabs() {
+  var sw = document.getElementById('switcher');
+  var single = document.getElementById('server-single');
+  sw.querySelectorAll('.switcher-btn').forEach(function (b) { b.remove(); });
+  if (!SERVERS.length) {
+    sw.classList.add('hidden');
+    single.classList.add('hidden');
+    return;
+  }
+  if (SERVERS.length === 1) {
+    sw.classList.add('hidden');
+    single.classList.remove('hidden');
+    single.textContent = SERVERS[0].name;
+  } else {
+    single.classList.add('hidden');
+    sw.classList.remove('hidden');
+    sortServers(SERVERS).forEach(function (s) {
+      var b = document.createElement('button');
+      b.className = 'switcher-btn';
+      b.setAttribute('data-view', serverViewKey(s));
+      b.textContent = s.name;
+      b.addEventListener('click', function () { switchView(serverViewKey(s)); });
+      sw.appendChild(b);
+    });
+    sw.querySelectorAll('.switcher-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-view') === currentView);
+    });
+  }
+  positionPill();
+}
+function positionPill() {
+  var sw = document.getElementById('switcher');
+  var pill = document.getElementById('switcher-pill');
+  var btns = sw.querySelectorAll('.switcher-btn');
+  var n = btns.length;
+  if (n <= 1) { pill.style.display = 'none'; return; }
+  pill.style.display = '';
+  pill.style.width = 'calc(' + (100 / n) + '% - ' + (8 / n) + 'px)';
+  var idx = 0;
+  btns.forEach(function (b, i) { if (b.classList.contains('active')) idx = i; });
+  pill.style.transform = 'translateX(' + (idx * 100) + '%)';
+}
+renderServerTabs();
+applyAdminServerNames();
+
+/* ---- servers settings modal ---- */
+var serversModal = document.getElementById('servers-modal');
+var serversModalCard = document.getElementById('servers-modal-card');
+var serversSrcBtn = null;
+function showServersModal(btn) {
+  serversSrcBtn = btn;
+  document.getElementById('cfg-panel-name').value = document.getElementById('panel-name').textContent;
+  renderServersList();
+  loadAlerts();
+  modalShow(serversModal, serversModalCard, btn);
+}
+function savePanelName(btn) {
+  var v = (document.getElementById('cfg-panel-name').value || '').trim();
+  if (!v || v.length > 32) { showToast('面板名称须为 1–32 个字符。', true); return; }
+  btn.disabled = true;
+  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panel_name: v }) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      applyPanelName(v);
+      showToast('面板名称已更新。');
+    })
+    .catch(function (e) { showToast('保存失败：' + e.message, true); })
+    .finally(function () { btn.disabled = false; });
+}
+function hideServersModal() {
+  modalHide(serversModal, serversModalCard, serversSrcBtn);
+  serversSrcBtn = null;
+}
+serversModal.addEventListener('click', function (e) { if (e.target === serversModal) hideServersModal(); });
+document.getElementById('servers-close-btn').addEventListener('click', hideServersModal);
+function renderServersList() {
+  var wrap = document.getElementById('servers-list');
+  if (!SERVERS.length) { wrap.innerHTML = '<div class="meta">暂无服务器。</div>'; return; }
+  var html = '';
+  sortServers(SERVERS).forEach(function (s) {
+    html += '<div class="srv-row" data-id="' + esc(s.id) + '">'
+      + '<input type="text" class="srv-name-input" value="' + esc(s.name) + '" maxlength="32">'
+      + '<label class="srv-quota-label">每月额度 <input type="number" class="srv-quota-input" min="1" max="1000000" step="1" value="' + (s.quota_gb == null ? '' : s.quota_gb) + '" placeholder="GB"> GB</label>'
+      + '<button class="small ghost" onclick="saveServerRow(\'' + esc(s.id) + '\', this)">保存</button>'
+      + '<span class="srv-info">' + (s.type === 'local' ? '本地' : '远程') + (s.host ? ' · ' + esc(s.host) + (s.port ? ':' + s.port : '') : '') + '</span>'
+      + (s.type === 'local' ? '' : '<button class="small danger" onclick="delServer(\'' + esc(s.id) + '\', this)">删除</button>')
+      + '</div>';
+  });
+  wrap.innerHTML = html;
+}
+function saveServerRow(id, btn) {
+  var row = btn.closest('.srv-row');
+  var input = row ? row.querySelector('.srv-name-input') : null;
+  var quotaInput = row ? row.querySelector('.srv-quota-input') : null;
+  var name = input ? (input.value || '').trim() : '';
+  if (!name || name.length > 32) { showToast('名字须为 1–32 个字符。', true); return; }
+  var quotaRaw = quotaInput ? (quotaInput.value || '').trim() : '';
+  var body = { name: name };
+  if (quotaRaw !== '') {
+    var q = Number(quotaRaw);
+    if (!(q >= 1 && q <= 1000000)) { showToast('每月流量额度须为 1–1000000 GB。', true); return; }
+    body.quota_gb = q;
+  } else {
+    body.quota_gb = null;
+  }
+  fetch('/api/servers/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      return loadServers().then(function () {
+        renderServersList();
+        loadAlerts();
+        if (currentView === 'remote:' + id) {
+          var s = serverById(id);
+          if (s) document.getElementById('remote-title').textContent = s.name;
+        }
+        showToast('已保存。');
+      });
+    })
+    .catch(function (e) { showToast('保存失败：' + e.message, true); });
+}
+function delServer(id, btn) {
+  var s = serverById(id);
+  showConfirm(
+    '确定要删除服务器 ' + (s ? s.name : id) + ' 吗？',
+    '只删除面板里的记录，不影响服务器本身。',
+    btn,
+    function () {
+      fetch('/api/servers/' + encodeURIComponent(id), { method: 'DELETE' })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d && res.d.error) || '删除失败');
+          var wasViewing = currentView === serverViewKey(s);
+          return loadServers().then(function () {
+            renderServersList();
+            if (wasViewing) {
+              var first = sortServers(SERVERS)[0];
+              switchView(first ? serverViewKey(first) : 'd2');
+            }
+            showToast('已删除。');
+          });
+        })
+        .catch(function (e) { showToast('删除失败：' + e.message, true); });
+    }
+  );
+}
+function addServer(btn) {
+  var name = document.getElementById('srv-add-name').value.trim();
+  var host = document.getElementById('srv-add-host').value.trim();
+  var portRaw = document.getElementById('srv-add-port').value.trim();
+  var port = portRaw === '' ? 22 : Number(portRaw);
+  var quotaRaw = document.getElementById('srv-add-quota').value.trim();
+  var quota = null;
+  if (quotaRaw !== '') {
+    quota = Number(quotaRaw);
+    if (!(quota >= 1 && quota <= 1000000)) { showToast('每月流量额度须为 1–1000000 GB。', true); return; }
+  }
+  if (!name) { showToast('名字必填。', true); return; }
+  if (!host) { showToast('主机/IP 必填。', true); return; }
+  if (!(port >= 1 && port <= 65535)) { showToast('端口须为 1–65535。', true); return; }
+  btn.disabled = true;
+  var addBody = { name: name, host: host, port: port };
+  if (quota !== null) addBody.quota_gb = quota;
+  fetch('/api/servers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addBody) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '添加失败');
+      document.getElementById('srv-add-name').value = '';
+      document.getElementById('srv-add-host').value = '';
+      document.getElementById('srv-add-port').value = '';
+      document.getElementById('srv-add-quota').value = '';
+      return loadServers().then(function () {
+        renderServersList();
+        if (res.d.warning) showToast('已保存，但 ' + res.d.warning, true);
+        else showToast('服务器已添加。');
+      });
+    })
+    .catch(function (e) { showToast('添加失败：' + e.message, true); })
+    .finally(function () { btn.disabled = false; });
+}
+
+/* ---- monthly traffic alerts (GET/POST /api/alerts) ---- */
+function loadAlerts() {
+  var st = document.getElementById('al-status');
+  fetch('/api/alerts', { cache: 'no-store' })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '加载失败');
+      var d = res.d;
+      document.getElementById('al-token').value = '';
+      document.getElementById('al-token').placeholder = d.telegram_bot_token_masked ? ('已设置（' + d.telegram_bot_token_masked + '）') : '未设置';
+      document.getElementById('al-chat').value = d.telegram_chat_id || '';
+      document.getElementById('al-alert').value = d.alert_threshold_pct;
+      document.getElementById('al-disable').value = d.disable_threshold_pct;
+      var html = d.telegram_configured ? 'Telegram 已配置' : 'Telegram 未配置（填好 Token 与 Chat ID 后才能发提醒）';
+      sortServers(d.servers || []).forEach(function (s) {
+        var pct = (s.pct == null) ? '—' : s.pct.toFixed(1) + '%';
+        var used = (s.used_gb == null) ? '—' : s.used_gb.toFixed(2) + ' GB';
+        var quota = (s.quota_gb == null) ? '不限' : s.quota_gb + ' GB';
+        var flags = [];
+        if (d.alert_sent_month && d.alert_sent_month[s.id]) flags.push('本月已提醒');
+        if (d.disabled_month && d.disabled_month[s.id]) flags.push('本月已停用');
+        html += '<br>' + esc(s.name) + '：' + used + ' / ' + quota + '（' + pct + '）' + (flags.length ? ' · ' + flags.join('、') : '');
+      });
+      st.innerHTML = html;
+    })
+    .catch(function (e) { st.textContent = '预警状态加载失败：' + e.message; });
+}
+function saveAlerts(btn) {
+  var alertPct = Number(document.getElementById('al-alert').value);
+  var disablePct = Number(document.getElementById('al-disable').value);
+  if (!(alertPct >= 0 && alertPct <= 100 && disablePct >= 0 && disablePct <= 100)) { showToast('阈值须为 0–100 的数字。', true); return; }
+  if (!(alertPct < disablePct)) { showToast('提醒阈值须小于自动停用阈值。', true); return; }
+  btn.disabled = true;
+  fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    telegram_bot_token: document.getElementById('al-token').value.trim(),
+    telegram_chat_id: document.getElementById('al-chat').value.trim(),
+    alert_threshold_pct: alertPct,
+    disable_threshold_pct: disablePct
+  }) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      document.getElementById('al-token').value = '';
+      showToast('预警设置已保存。');
+      loadAlerts();
+      // Threshold may have changed: re-fetch traffic data so both notes
+      // show the new value right away (no page reload needed).
+      loadAdmin();
+    })
+    .catch(function (e) { showToast('保存失败：' + e.message, true); })
+    .finally(function () { btn.disabled = false; });
+}
+function testAlerts(btn) {
+  btn.disabled = true;
+  fetch('/api/alerts/test', { method: 'POST' })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '发送失败');
+      showToast('测试消息已发送，请查看 Telegram。');
+    })
+    .catch(function (e) { showToast('发送失败：' + e.message, true); })
+    .finally(function () { btn.disabled = false; });
+}
+function deleteAlerts(btn) {
+  showConfirm(
+    '确定要删除机器人配置吗？',
+    '将删除 Telegram Bot Token 与 Chat ID，本月已提醒 / 已停用状态也会重置；提醒阈值与自动停用阈值保留不变。删除后不再发送 Telegram 提醒。',
+    btn,
+    function () {
+      fetch('/api/alerts', { method: 'DELETE' })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d && res.d.error) || '删除失败');
+          showToast('机器人配置已删除。');
+          loadAlerts();
+        })
+        .catch(function (e) { showToast('删除失败：' + e.message, true); });
+    });
+}
+
+/* ---- admin runtime-log export (GET /api/admin/logs) ----
+   Admin-only (the servers modal is only reachable from the admin nav).
+   Fetches the log as a blob so a 401/403 can be shown as a toast
+   instead of a bare download; the server names the file. */
+/* ---- admin log export: range dropdown + wheel picker (custom range) ---- */
+var logFromVal = null; // Date or null
+var logToVal = null;   // Date or null
+function logPad(n) { return (n < 10 ? '0' : '') + n; }
+function logISO(d) {
+  return d.getFullYear() + '-' + logPad(d.getMonth() + 1) + '-' + logPad(d.getDate()) +
+    'T' + logPad(d.getHours()) + ':' + logPad(d.getMinutes()) + ':' + logPad(d.getSeconds());
+}
+function logDisplay(d) {
+  return d.getFullYear() + '-' + logPad(d.getMonth() + 1) + '-' + logPad(d.getDate()) +
+    ' ' + logPad(d.getHours()) + ':' + logPad(d.getMinutes()) + ':' + logPad(d.getSeconds());
+}
+/* ---- log export: custom range dropdown (dark modal, replaces the native
+   <select> whose Android system popup was white and clashed with the
+   panel's dark theme). Same FLIP modal animation as the other modals;
+   display-type: closes on option pick or backdrop click. ---- */
+var logRangeVal = 'all';
+var LOG_RANGE_LABELS = { all: '全部', today: '今天', '1h': '最近1小时', '24h': '最近24小时', '7d': '最近7天', custom: '自定义时间段' };
+var logRangeModal = document.getElementById('log-range-modal');
+var logRangeCard = document.getElementById('log-range-modal-card');
+var logRangeBtn = document.getElementById('log-range-btn');
+var logRangeSrcBtn = null;
+function logRangeApply() {
+  document.getElementById('log-range-label').textContent = LOG_RANGE_LABELS[logRangeVal];
+  document.getElementById('log-custom').classList.toggle('open', logRangeVal === 'custom');
+  var opts = document.querySelectorAll('#log-range-opts .log-range-opt');
+  opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.value === logRangeVal); });
+}
+function showLogRangeModal(btn) {
+  logRangeSrcBtn = btn;
+  modalShow(logRangeModal, logRangeCard, btn);
+}
+function hideLogRangeModal() {
+  modalHide(logRangeModal, logRangeCard, logRangeSrcBtn);
+  logRangeSrcBtn = null;
+}
+logRangeBtn.addEventListener('click', function () { showLogRangeModal(this); });
+logRangeModal.addEventListener('click', function (e) { if (e.target === logRangeModal) hideLogRangeModal(); });
+document.querySelectorAll('#log-range-opts .log-range-opt').forEach(function (o) {
+  o.addEventListener('click', function () {
+    logRangeVal = o.dataset.value;
+    logRangeApply();
+    hideLogRangeModal();
+  });
+});
+function downloadAdminLogs(btn) {
+  var range = logRangeVal;
+  var url = '/api/admin/logs';
+  if (range === 'all') {
+    url += '?all=1';
+  } else {
+    var q = [];
+    var now = new Date();
+    var from = null, to = null;
+    if (range === 'today') {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      to = now;
+    } else if (range === '1h') {
+      from = new Date(now.getTime() - 3600 * 1000); to = now;
+    } else if (range === '24h') {
+      from = new Date(now.getTime() - 24 * 3600 * 1000); to = now;
+    } else if (range === '7d') {
+      from = new Date(now.getTime() - 7 * 24 * 3600 * 1000); to = now;
+    } else if (range === 'custom') {
+      from = logFromVal; to = logToVal;
+    }
+    if (from) q.push('from=' + encodeURIComponent(logISO(from)));
+    if (to) q.push('to=' + encodeURIComponent(logISO(to)));
+    if (q.length) url += '?' + q.join('&');
+  }
+  if (btn) btn.disabled = true;
+  fetch(url, { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error('下载失败：HTTP ' + r.status);
+    var cd = r.headers.get('Content-Disposition') || '';
+    var m = /filename="([^"]+)"/.exec(cd);
+    var fname = m ? m[1] : ('panel-' + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '') + '.log');
+    return r.blob().then(function (blob) { return { blob: blob, fname: fname }; });
+  }).then(function (res) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(res.blob);
+    a.download = res.fname;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    showToast('日志已下载');
+  }).catch(function (e) {
+    showToast(e.message || '下载失败', true);
+  }).finally(function () {
+    if (btn) btn.disabled = false;
+  });
+}
+
+/* ---- log wheel picker: 6 scroll-snap columns (year/month/day/hour/minute/second).
+   Native scrolling (touch + mouse wheel) + scroll-snap; JS reads the centered
+   item on scroll end. Day column regenerates when year/month change. ---- */
+var logWheelModal = document.getElementById('log-wheel-modal');
+var logWheelCard = document.getElementById('log-wheel-modal-card');
+var logWheelSrcBtn = null;
+var logWheelTarget = null; // 'from' or 'to'
+var logWheelDate = null;   // Date being edited (a copy; only committed on 确定)
+var logWheelTimers = {};
+function logWheelDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function logWheelUnitValue(unit) {
+  if (!logWheelDate) return 0;
+  if (unit === 'year') return logWheelDate.getFullYear();
+  if (unit === 'month') return logWheelDate.getMonth() + 1;
+  if (unit === 'day') return logWheelDate.getDate();
+  if (unit === 'hour') return logWheelDate.getHours();
+  if (unit === 'minute') return logWheelDate.getMinutes();
+  return logWheelDate.getSeconds();
+}
+function logWheelSetUnit(unit, v) {
+  if (!logWheelDate) return;
+  if (unit === 'year') logWheelDate.setFullYear(v);
+  else if (unit === 'month') logWheelDate.setMonth(v - 1);
+  else if (unit === 'day') logWheelDate.setDate(v);
+  else if (unit === 'hour') logWheelDate.setHours(v);
+  else if (unit === 'minute') logWheelDate.setMinutes(v);
+  else if (unit === 'second') logWheelDate.setSeconds(v);
+}
+function logWheelBuildCol(unit, label, min, max) {
+  var wrap = document.createElement('div');
+  wrap.className = 'log-wheel-col-wrap';
+  var lab = document.createElement('div');
+  lab.className = 'log-wheel-col-label';
+  lab.textContent = label;
+  var col = document.createElement('div');
+  col.className = 'log-wheel-col';
+  col.dataset.unit = unit;
+  var cur = logWheelUnitValue(unit);
+  for (var v = min; v <= max; v++) {
+    var it = document.createElement('div');
+    it.className = 'log-wheel-item' + (v === cur ? ' sel' : '');
+    it.dataset.value = v;
+    it.textContent = logPad(v);
+    col.appendChild(it);
+  }
+  wrap.appendChild(lab);
+  wrap.appendChild(col);
+  return wrap;
+}
+function logWheelCenterCol(col) {
+  var items = col.querySelectorAll('.log-wheel-item');
+  var idx = 0;
+  items.forEach(function (it, i) { if (it.classList.contains('sel')) idx = i; });
+  col.scrollTop = idx * 50; // item height 50px; padding 50px centers item 0 at scrollTop 0
+}
+function logWheelBuild() {
+  var wrap = document.getElementById('log-wheel');
+  wrap.innerHTML = '';
+  var y = logWheelDate.getFullYear(), m = logWheelDate.getMonth();
+  var defs = [
+    { unit: 'year', label: '年', min: 2020, max: 2035 },
+    { unit: 'month', label: '月', min: 1, max: 12 },
+    { unit: 'day', label: '日', min: 1, max: logWheelDaysInMonth(y, m) },
+    { unit: 'hour', label: '时', min: 0, max: 23 },
+    { unit: 'minute', label: '分', min: 0, max: 59 },
+    { unit: 'second', label: '秒', min: 0, max: 59 },
+  ];
+  defs.forEach(function (d) {
+    var colWrap = logWheelBuildCol(d.unit, d.label, d.min, d.max);
+    wrap.appendChild(colWrap);
+    var col = colWrap.querySelector('.log-wheel-col');
+    logWheelCenterCol(col); // set scrollTop before attaching listener (no scroll event)
+    col.addEventListener('scroll', function () { logWheelOnScroll(col); });
+  });
+}
+function logWheelCentered(col) {
+  var idx = Math.round(col.scrollTop / 50);
+  var items = col.querySelectorAll('.log-wheel-item');
+  if (idx < 0) idx = 0;
+  if (idx > items.length - 1) idx = items.length - 1;
+  return items[idx];
+}
+function logWheelOnScroll(col) {
+  var unit = col.dataset.unit;
+  if (logWheelTimers[unit]) clearTimeout(logWheelTimers[unit]);
+  logWheelTimers[unit] = setTimeout(function () {
+    var it = logWheelCentered(col);
+    if (!it) return;
+    var v = parseInt(it.dataset.value, 10);
+    col.querySelectorAll('.log-wheel-item').forEach(function (x) { x.classList.toggle('sel', x === it); });
+    if (logWheelUnitValue(unit) === v) return;
+    logWheelSetUnit(unit, v);
+    if (unit === 'year' || unit === 'month') {
+      // Day count may change (28/29/30/31, leap years); rebuild the day column, clamping the day.
+      var maxD = logWheelDaysInMonth(logWheelDate.getFullYear(), logWheelDate.getMonth());
+      if (logWheelDate.getDate() > maxD) logWheelDate.setDate(maxD);
+      var dayCol = document.querySelector('.log-wheel-col[data-unit="day"]');
+      if (dayCol) {
+        var oldWrap = dayCol.parentNode;
+        var newWrap = logWheelBuildCol('day', '日', 1, maxD);
+        oldWrap.parentNode.replaceChild(newWrap, oldWrap);
+        var nc = newWrap.querySelector('.log-wheel-col');
+        logWheelCenterCol(nc);
+        nc.addEventListener('scroll', function () { logWheelOnScroll(nc); });
+      }
+    }
+  }, 90);
+}
+function showLogWheel(target, btn) {
+  logWheelTarget = target;
+  logWheelSrcBtn = btn;
+  var cur = (target === 'from' ? logFromVal : logToVal) || new Date();
+  logWheelDate = new Date(cur.getTime());
+  document.getElementById('log-wheel-title').textContent = target === 'from' ? '选择开始时间' : '选择结束时间';
+  logWheelBuild();
+  modalShow(logWheelModal, logWheelCard, btn);
+}
+function hideLogWheel() {
+  modalHide(logWheelModal, logWheelCard, logWheelSrcBtn);
+  logWheelSrcBtn = null;
+  logWheelTarget = null;
+}
+document.getElementById('log-from-btn').addEventListener('click', function () { showLogWheel('from', this); });
+document.getElementById('log-to-btn').addEventListener('click', function () { showLogWheel('to', this); });
+document.getElementById('log-wheel-cancel').addEventListener('click', hideLogWheel);
+logWheelModal.addEventListener('click', function (e) { if (e.target === logWheelModal) hideLogWheel(); });
+document.getElementById('log-wheel-ok').addEventListener('click', function () {
+  if (!logWheelDate || !logWheelTarget) { hideLogWheel(); return; }
+  var d = new Date(logWheelDate.getTime());
+  var btn = logWheelTarget === 'from' ? document.getElementById('log-from-btn') : document.getElementById('log-to-btn');
+  if (logWheelTarget === 'from') logFromVal = d; else logToVal = d;
+  btn.textContent = logDisplay(d);
+  btn.classList.remove('empty');
+  hideLogWheel();
+});
+
+var switchTimer = null;
+function switchView(which) {
+  currentView = which;
+  var sw = document.getElementById('switcher');
+  document.querySelectorAll('.switcher-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-view') === which);
+  });
+  sw.classList.toggle('nopill', which === 'users');
+  positionPill();
+  var v1 = document.getElementById('view-d1');
+  var v2 = document.getElementById('view-d2');
+  var vu = document.getElementById('view-users');
+  var vr = document.getElementById('view-remote');
+  var show;
+  if (which === 'd1') show = v1;
+  else if (which === 'd2') show = v2;
+  else if (which === 'users') show = vu;
+  else if (which.indexOf('remote:') === 0) {
+    var s = serverById(which.slice(7));
+    if (s) {
+      document.getElementById('remote-title').textContent = s.name;
+      document.getElementById('remote-desc').textContent = '未连通 · 待配置 agent' + (s.host ? '（' + s.host + (s.port ? ':' + s.port : '') + '）' : '');
+    }
+    show = vr;
+  } else show = v1;
+  // cancel any in-flight leave (rapid clicks): hide the leaving view at once
+  if (switchTimer) { clearTimeout(switchTimer); switchTimer = null; }
+  document.querySelectorAll('.view.leaving').forEach(function(v){ v.classList.remove('leaving'); });
+  var cur = document.querySelector('.view.active');
+  document.getElementById('users-nav-btn').classList.toggle('on', which === 'users');
+  if (which === 'users') loadUsers();
+  if (which === 'd1' || which === 'd2') { try { localStorage.setItem('panel-view-v2', which); } catch (e) {} }
+  if (cur === show) return;
+  function enter() { show.classList.add('active'); }
+  if (cur) {
+    // leave: panels slide out to the right with blur, then hide and enter the next view
+    cur.classList.remove('active');
+    cur.classList.add('leaving');
+    switchTimer = setTimeout(function(){
+      switchTimer = null;
+      cur.classList.remove('leaving');
+      enter();
+    }, 350);
+  } else {
+    enter();
+  }
+}
+
+var toastEl = document.getElementById('toast');
+var toastTimer = null;
+function showToast(msg, isErr){
+  toastEl.textContent = msg;
+  toastEl.classList.toggle('err', !!isErr);
+  toastEl.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 3000);
+}
+
+function copyText(elId, btn) {
+  var el = document.getElementById(elId);
+  var text = el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+  copyStr(text, btn);
+}
+
+function copyStr(text, btn, onDone) {
+  function done(ok) {
+    if (btn) { var old = btn.textContent; btn.textContent = ok ? '已复制 ✓' : '复制失败'; setTimeout(function(){ btn.textContent = old; }, 1500); }
+    if (onDone) onDone(ok);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ fallback(); });
+  } else { fallback(); }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(true); } catch (e) { done(false); }
+    document.body.removeChild(ta);
+  }
+}
+
+function rotateLink(which, btn) {
+  var name = which === 'vless' ? 'VLESS' : 'Hysteria 2';
+  var warn = which === 'hy2'
+    ? '\n\n注意：轮换 HY2 会同时给所有用户生成新链接，并把除管理员外的所有用户停用。停用的用户页面只显示“用户已停用”，需要在用户管理里重新启用，启用后他们才能看到新链接。'
+    : '';
+  showConfirm(
+    '确定要轮换 ' + name + ' 的凭证吗？',
+    '轮换后旧链接立刻失效，所有设备都要换成新链接才能继续用。' + warn,
+    btn,
+    function(){
+      var oldText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '轮换中…';
+      fetch('/api/rotate?node=' + which, { method: 'POST' })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok || !res.d.link) throw new Error((res.d && res.d.error) || '轮换失败');
+          location.reload();
+        })
+        .catch(function(e){ showToast('轮换失败：' + e.message, true); })
+        .finally(function(){ btn.disabled = false; btn.textContent = oldText; });
+    }
+  );
+}
+
+function rotateD1(which, btn) {
+  var name = which === 'vless' ? 'VLESS' : 'Hysteria 2';
+  var warn = which === 'hy2'
+    ? '\n\n注意：轮换 HY2 会同时给所有用户生成新链接，并把除管理员外的所有用户停用。停用的用户页面只显示“用户已停用”，需要在用户管理里重新启用，启用后他们才能看到新链接。'
+    : '';
+  showConfirm(
+    '确定要轮换 ' + name + ' 的凭证吗？',
+    '轮换后旧链接立刻失效，所有设备都要换成新链接才能继续用。' + warn,
+    btn,
+    function(){
+      var oldText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '轮换中…';
+      fetch('/api/d1/rotate?node=' + which, { method: 'POST' })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok || !res.d.link) throw new Error((res.d && res.d.error) || '轮换失败');
+          location.reload();
+        })
+        .catch(function(e){ showToast('轮换失败：' + e.message, true); })
+        .finally(function(){ btn.disabled = false; btn.textContent = oldText; });
+    }
+  );
+}
+
+function fmtGB(bytes) {
+  return (bytes / 1e9).toFixed(2) + ' GB';
+}
+
+function fmtAuto(bytes) {
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + ' GB';
+  return (bytes / 1e6).toFixed(2) + ' MB';
+}
+
+/* Traffic-note guard text, linked to the alerts auto-disable threshold:
+   "95%（1900 GB）自动断节点守卫仍在运行". Numbers are trimmed to at most
+   2 decimals without trailing zeros (95 -> "95", 92.5 -> "92.5"). */
+function fmtTrim(n) {
+  return (+n).toFixed(2).replace(/\.?0+$/, '');
+}
+function guardText(pct, quota) {
+  return fmtTrim(pct) + '%（' + fmtTrim(pct / 100 * quota) + ' GB）自动断节点守卫仍在运行';
+}
+function disablePctOf(d, fallback) {
+  var v = d ? +d.disable_threshold_pct : NaN;
+  return isFinite(v) ? v : fallback;
+}
+function alertPctOf(d, fallback) {
+  var v = d ? +d.alert_threshold_pct : NaN;
+  return isFinite(v) ? v : fallback;
+}
+
+function renderData(d) {
+  document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (d.updated || '—'); });
+  var t = d.traffic || {};
+  var total = (t.rx || 0) + (t.tx || 0);
+  document.getElementById('t-total').textContent = fmtGB(total);
+  document.getElementById('t-rx').textContent = fmtGB(t.rx || 0);
+  document.getElementById('t-tx').textContent = fmtGB(t.tx || 0);
+  var quota = (d.quota_gb != null && d.quota_gb > 0) ? d.quota_gb : 2000;
+  var pct = total / (quota * 1e9) * 100;
+  document.getElementById('t-quota').textContent = quota + ' GB';
+  document.getElementById('t-bar').style.width = Math.min(pct, 100) + '%';
+  document.getElementById('t-note').textContent = '本月 ' + (t.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(d, 95), quota);
+  var td = t.today || {};
+  var dTotal = (td.rx || 0) + (td.tx || 0);
+  document.getElementById('d-total').textContent = fmtAuto(dTotal);
+  document.getElementById('d-rx').textContent = fmtAuto(td.rx || 0);
+  document.getElementById('d-tx').textContent = fmtAuto(td.tx || 0);
+  document.getElementById('d-note').textContent = '今日 ' + (td.date || '—') + ' · 每天北京时间 00:00 重新计算';
+  var badge = document.getElementById('traffic-badge');
+  var disPct = disablePctOf(d, 95), alPct = alertPctOf(d, 80);
+  badge.textContent = pct >= disPct ? '已超 ' + fmtTrim(disPct) + '%' : (pct >= alPct ? '超 ' + fmtTrim(alPct) + '%' : '正常');
+  badge.className = 'badge' + (pct >= disPct ? ' down' : '');
+  var c = d.certs || {};
+  document.getElementById('c-node').textContent = (c.node && c.node.not_after ? c.node.not_after.slice(0, 10) : '—') + (c.node && c.node.days_left != null ? '（剩 ' + c.node.days_left + ' 天）' : '');
+  document.getElementById('c-panel').textContent = (c.panel && c.panel.not_after ? c.panel.not_after.slice(0, 10) : '—') + (c.panel && c.panel.days_left != null ? '（剩 ' + c.panel.days_left + ' 天）' : '');
+  var s = d.services || {};
+  document.querySelectorAll('[data-svc]').forEach(function(el) {
+    var st = s[el.getAttribute('data-svc')];
+    el.textContent = st === 'active' ? '运行中' : (st || '未知');
+    el.className = 'badge' + (st === 'active' ? '' : ' down');
+  });
+}
+
+function loadAdmin() {
+fetch('/api/links', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(d){ LINKS = d; renderLinks(); })
+  .catch(function(){
+    document.getElementById('link-vless').textContent = '链接加载失败，请刷新重试';
+    document.getElementById('link-hy2').textContent = '链接加载失败，请刷新重试';
+  });
+
+fetch('/api/data', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(renderData)
+  .catch(function(){
+    document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '流量/证书数据加载失败（链接与二维码不受影响）'; });
+    document.getElementById('t-note').textContent = '数据未就绪，稍后再刷新。';
+  });
+
+function renderD1Status(s) {
+  var t = s.traffic || {};
+  var total = (t.rx || 0) + (t.tx || 0);
+  document.getElementById('t1-total').textContent = fmtGB(total);
+  document.getElementById('t1-rx').textContent = fmtGB(t.rx || 0);
+  document.getElementById('t1-tx').textContent = fmtGB(t.tx || 0);
+  var quota = (s.quota_gb != null && s.quota_gb > 0) ? s.quota_gb : 3000;
+  var pct = total / (quota * 1e9) * 100;
+  document.getElementById('t1-quota').textContent = quota + ' GB';
+  document.getElementById('t1-bar').style.width = Math.min(pct, 100) + '%';
+  document.getElementById('t1-note').textContent = '本月 ' + (s.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(s, 95), quota);
+  var td = s.today || {};
+  var dTotal = (td.rx || 0) + (td.tx || 0);
+  document.getElementById('d1-total').textContent = fmtAuto(dTotal);
+  document.getElementById('d1-rx').textContent = fmtAuto(td.rx || 0);
+  document.getElementById('d1-tx').textContent = fmtAuto(td.tx || 0);
+  document.getElementById('d1-note').textContent = '今日 ' + (td.date || '—') + ' · 每天北京时间 00:00 重新计算';
+  var badge = document.getElementById('traffic1-badge');
+  var disPct = disablePctOf(s, 95), alPct = alertPctOf(s, 80);
+  badge.textContent = pct >= disPct ? '已超 ' + fmtTrim(disPct) + '%' : (pct >= alPct ? '超 ' + fmtTrim(alPct) + '%' : '正常');
+  badge.className = 'badge' + (pct >= disPct ? ' down' : '');
+  var c = s.cert || {};
+  document.getElementById('c1-node').textContent = (c.not_after || '—') + (c.days_left != null ? '（剩 ' + c.days_left + ' 天）' : '');
+  document.querySelectorAll('[data-d1svc]').forEach(function(el) {
+    var st = s[el.getAttribute('data-d1svc')];
+    el.textContent = st === 'active' ? '运行中' : (st || '未知');
+    el.className = 'badge' + (st === 'active' ? '' : ' down');
+  });
+}
+
+fetch('/api/d1/links', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(d){ LINKS1 = d; renderD1Links(); })
+  .catch(function(){
+    d1LinksFailed = true;
+    renderD1Errors();
+  });
+
+fetch('/api/d1/status', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(renderD1Status)
+  .catch(function(){
+    d1StatusFailed = true;
+    renderD1Errors();
+  });
+}
+
+/* ---- login / roles / user management ---- */
+var ME = null;
+var lastRegUser = '';
+var lastRegLink = '';
+
+function showLogin() {
+  stopUserRefresh();
+  document.getElementById('login-view').classList.remove('hidden');
+  document.getElementById('app-view').classList.add('hidden');
+  document.getElementById('view-user').classList.add('hidden');
+  applyLyricsVisibility();
+}
+
+function showApp() {
+  document.getElementById('login-view').classList.add('hidden');
+  document.getElementById('app-view').classList.remove('hidden');
+  /* Default playback: the login click counts as a user gesture, so play()
+     here is allowed; if already logged in (no gesture), bgmTryAutoplay
+     uses the muted-then-unmute trick, and the first tap/click starts it
+     via bgmUnlock. */
+  bgmTryAutoplay();
+  applyLyricsVisibility();
+  document.querySelectorAll('.who-name').forEach(function(el){ el.textContent = '当前用户：' + ME.username + (ME.role === 'admin' ? '（管理员）' : ''); });
+  document.querySelectorAll('.user-chpw-btn').forEach(function(el){ el.classList.toggle('hidden', ME.role === 'admin'); });
+  if (ME.role === 'admin') {
+    document.getElementById('admin-nav').classList.remove('hidden');
+    document.getElementById('view-user').classList.add('hidden');
+    loadServers();
+    var saved = null;
+    try { saved = localStorage.getItem('panel-view-v2'); } catch (e) {}
+    switchView(saved === 'd1' || saved === 'd2' ? saved : 'd2');
+    loadAdmin();
+  } else {
+    document.getElementById('admin-nav').classList.add('hidden');
+    document.getElementById('view-d1').classList.remove('active');
+    document.getElementById('view-d2').classList.remove('active');
+    document.getElementById('view-users').classList.remove('active');
+    /* user inner views: show the saved server at once (no animation) */
+    document.querySelectorAll('#view-user .view').forEach(function (v) {
+      v.classList.toggle('active', v.id === 'view-user-' + userServer);
+      v.classList.remove('leaving');
+    });
+    document.getElementById('view-user').classList.remove('hidden');
+    document.getElementById('view-user').classList.add('active');
+    loadUser();
+    startUserRefresh();
+  }
+}
+
+function logout() {
+  stopUserRefresh();
+  fetch('/api/logout', { method: 'POST' }).finally(function(){
+    ME = null;
+    showLogin();
+  });
+}
+
+function userChangePw(btn) {
+  fetch('/api/me', { cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(me){
+      ME = me;
+      if (!me.allow_pw_change) {
+        showConfirm('修改密码', '功能被管理员禁用', btn, function(){});
+        return;
+      }
+      showConfirm(
+        '修改密码',
+        '新密码至少 6 位；同时也是你的 HY2 新密码，旧链接立刻失效。',
+        btn,
+        function(v){
+          if (!v) return;
+          var cur = v[0], pw = v[1], pw2 = v[2];
+          if ((pw || '').length < 6) { showToast('密码至少 6 位。', true); return; }
+          if (pw !== pw2) { showToast('两次输入的新密码不一致。', true); return; }
+          fetch('/api/user/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: cur, new_password: pw }) })
+            .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+            .then(function(res){
+              if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
+              showToast('密码已改。你的 HY2 链接已换新，旧链接已失效。');
+            })
+            .catch(function(e){ showToast('修改失败：' + e.message, true); });
+        },
+        { inputs: [
+          { label: '当前密码', type: 'password', placeholder: '输入当前密码' },
+          { label: '新密码', type: 'password', placeholder: '新密码（至少 6 位）' },
+          { label: '确认新密码', type: 'password', placeholder: '再输一次新密码' },
+        ] }
+      );
+    })
+    .catch(function(e){ showToast('加载失败：' + e.message, true); });
+}
+
+function showSetupForm() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('show-setup').parentElement.classList.add('hidden');
+  document.getElementById('setup-form').classList.remove('hidden');
+}
+function showLoginForm() {
+  document.getElementById('setup-form').classList.add('hidden');
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('show-setup').parentElement.classList.remove('hidden');
+}
+
+// One-click registration link: ?setup=1&user=<name>&token=<token>.
+// Opens the first-login form with username + token prefilled, then strips
+// the params from the URL so the token does not linger in the address bar.
+function maybeShowSetupFromUrl() {
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return; }
+  if (q.get('setup') !== '1') return;
+  var u = q.get('user') || '';
+  var t = q.get('token') || '';
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  if (!u || !t) return;
+  showSetupForm();
+  document.getElementById('setup-user').value = u;
+  document.getElementById('setup-token').value = t;
+}
+document.getElementById('show-setup').addEventListener('click', function(e){ e.preventDefault(); showSetupForm(); });
+document.getElementById('show-login').addEventListener('click', function(e){ e.preventDefault(); showLoginForm(); });
+
+document.getElementById('login-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  var btn = document.getElementById('login-btn');
+  var err = document.getElementById('login-err');
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = '登录中…';
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('login-user').value.trim(),
+      password: document.getElementById('login-pass').value
+    })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+  .then(function(res){
+    if (!res.ok) {
+      if (res.d && res.d.needs_setup) {
+        document.getElementById('setup-user').value = document.getElementById('login-user').value.trim();
+        showSetupForm();
+        document.getElementById('setup-err').textContent = '该账号还没设置密码，请输入管理员给的一次性口令来设置。';
+        return;
+      }
+      throw new Error((res.d && res.d.error) || '登录失败');
+    }
+    ME = res.d;
+    document.getElementById('login-pass').value = '';
+    showApp();
+  })
+  .catch(function(e){ err.textContent = e.message; })
+  .finally(function(){ btn.disabled = false; btn.textContent = '登录'; });
+});
+
+document.getElementById('setup-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  var btn = document.getElementById('setup-btn');
+  var err = document.getElementById('setup-err');
+  err.textContent = '';
+  var username = document.getElementById('setup-user').value.trim();
+  var token = document.getElementById('setup-token').value.trim();
+  var pass = document.getElementById('setup-pass').value;
+  var pass2 = document.getElementById('setup-pass2').value;
+  if (!username || !token) { err.textContent = '用户名和一次性口令都要填。'; return; }
+  if (pass.length < 6) { err.textContent = '密码至少 6 位。'; return; }
+  if (pass !== pass2) { err.textContent = '两次输入的密码不一致。'; return; }
+  btn.disabled = true;
+  btn.textContent = '设置中…';
+  fetch('/api/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, token: token, password: pass })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+  .then(function(res){
+    if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+    document.getElementById('setup-pass').value = '';
+    document.getElementById('setup-pass2').value = '';
+    document.getElementById('setup-token').value = '';
+    btn.textContent = '正在进入…';
+    // The setup response sets a session cookie. Confirm it works before
+    // entering, so a new user lands straight in the panel after setup.
+    return fetch('/api/me', { cache: 'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('no session'); return r.json(); })
+      .then(function(d){
+        ME = d;
+        showLoginForm();
+        showApp();
+      })
+      .catch(function(){
+        // Password is set but the session did not stick: fall back to a
+        // manual login with the new password (username prefilled).
+        showLoginForm();
+        document.getElementById('login-user').value = username;
+        document.getElementById('login-err').textContent = '密码已设置好，请用新密码登录。';
+      });
+  })
+  .catch(function(e){ err.textContent = e.message; })
+  .finally(function(){ btn.disabled = false; btn.textContent = '设置密码并登录'; });
+});
+
+/* ---- admin first-run setup (no admin yet): strong-password generator ----
+   Self-fill takes priority: the user types their own password, or clicks
+   the dice button to generate a 16-char strong password (upper + lower +
+   digits + symbols, via crypto.getRandomValues). The generated value fills
+   both password fields and is revealed (type=text) + selected so it can
+   be copied before submitting. Posts to /api/admin/setup, which locks
+   itself permanently once an admin exists. */
+function genStrongPassword(len) {
+  len = len || 16;
+  var upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var lower = 'abcdefghijklmnopqrstuvwxyz';
+  var digits = '0123456789';
+  var symbols = '!@#$%^&*()-_=+';
+  var all = upper + lower + digits + symbols;
+  var cryptoObj = window.crypto || window.msCrypto;
+  var buf = new Uint32Array(len);
+  cryptoObj.getRandomValues(buf);
+  var chars = [
+    upper[buf[0] % upper.length],
+    lower[buf[1] % lower.length],
+    digits[buf[2] % digits.length],
+    symbols[buf[3] % symbols.length]
+  ];
+  for (var i = 4; i < len; i++) chars.push(all[buf[i] % all.length]);
+  for (var j = chars.length - 1; j > 0; j--) {
+    var k = buf[j] % (j + 1);
+    var t = chars[j]; chars[j] = chars[k]; chars[k] = t;
+  }
+  return chars.join('');
+}
+
+document.getElementById('admin-setup-gen').addEventListener('click', function(){
+  var pw = genStrongPassword(16);
+  var p1 = document.getElementById('admin-setup-pass');
+  var p2 = document.getElementById('admin-setup-pass2');
+  p1.value = pw; p2.value = pw;
+  p1.type = 'text'; p2.type = 'text';
+  p1.focus(); p1.select();
+});
+
+document.getElementById('admin-setup-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  var btn = document.getElementById('admin-setup-btn');
+  var err = document.getElementById('admin-setup-err');
+  err.textContent = '';
+  var username = document.getElementById('admin-setup-user').value.trim() || 'admin';
+  var pass = document.getElementById('admin-setup-pass').value;
+  var pass2 = document.getElementById('admin-setup-pass2').value;
+  if (pass.length < 6) { err.textContent = '密码至少 6 位。'; return; }
+  if (pass !== pass2) { err.textContent = '两次输入的密码不一致。'; return; }
+  btn.disabled = true;
+  btn.textContent = '创建中…';
+  fetch('/api/admin/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, password: pass })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+  .then(function(res){
+    if (!res.ok) throw new Error((res.d && res.d.error) || '创建失败');
+    document.getElementById('admin-setup-pass').value = '';
+    document.getElementById('admin-setup-pass2').value = '';
+    btn.textContent = '正在进入…';
+    // The setup response sets a session cookie. Confirm it works before
+    // entering, so the new admin lands straight in the panel after setup.
+    return fetch('/api/me', { cache: 'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('no session'); return r.json(); })
+      .then(function(d){
+        ME = d;
+        document.getElementById('admin-setup-form').classList.add('hidden');
+        showApp();
+      })
+      .catch(function(){
+        // Admin is created but the session did not stick: fall back to a
+        // manual login with the new admin username prefilled.
+        document.getElementById('admin-setup-form').classList.add('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('show-setup').parentElement.classList.remove('hidden');
+        document.getElementById('login-user').value = username;
+        document.getElementById('login-err').textContent = '管理员已创建，请用新密码登录。';
+      });
+  })
+  .catch(function(e){ err.textContent = e.message; })
+  .finally(function(){ btn.disabled = false; btn.textContent = '创建管理员并进入'; });
+});
+
+fetch('/api/me', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw new Error('no session'); return r.json(); })
+  .then(function(d){ ME = d; showApp(); })
+  .catch(function(){
+    // No session: if no admin exists yet, show the admin first-run setup
+    // form (with the strong-password generator) instead of the login form;
+    // otherwise show the normal login form.
+    fetch('/api/setup-state', { cache: 'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.needs_setup) {
+          showLogin();
+          document.getElementById('login-form').classList.add('hidden');
+          document.getElementById('show-setup').parentElement.classList.add('hidden');
+          document.getElementById('setup-form').classList.add('hidden');
+          document.getElementById('admin-setup-form').classList.remove('hidden');
+        } else {
+          showLogin(); maybeShowSetupFromUrl();
+        }
+      })
+      .catch(function(){ showLogin(); maybeShowSetupFromUrl(); });
+  });
+
+/* ---- regular user view: per-server switch ---- */
+var userServer = 'local';
+try { userServer = localStorage.getItem('user-server') || 'local'; } catch (e) {}
+if (userServer !== 'd1' && userServer !== 'local') userServer = 'local';
+var userUsageData = null;
+var userLinksData = null;
+var userSwitchTimer = null;
+var userRefreshTimer = null;
+/* User view refreshes its data every 5 minutes (same cadence as the
+   server-side collector), so the subtitle time follows later runs too. */
+function startUserRefresh() {
+  stopUserRefresh();
+  userRefreshTimer = setInterval(loadUser, 5 * 60 * 1000);
+}
+function stopUserRefresh() {
+  if (userRefreshTimer) { clearInterval(userRefreshTimer); userRefreshTimer = null; }
+}
+function positionUserPill() {
+  var sw = document.getElementById('user-switcher');
+  if (!sw) return;
+  var pill = document.getElementById('user-switcher-pill');
+  var btns = sw.querySelectorAll('.switcher-btn');
+  var n = btns.length;
+  if (n <= 1) { pill.style.display = 'none'; return; }
+  pill.style.display = '';
+  pill.style.width = 'calc(' + (100 / n) + '% - ' + (8 / n) + 'px)';
+  var idx = 0;
+  btns.forEach(function (b, i) { if (b.classList.contains('active')) idx = i; });
+  pill.style.transform = 'translateX(' + (idx * 100) + '%)';
+}
+function switchUserServer(which) {
+  if (which !== 'd1' && which !== 'local') which = 'local';
+  userServer = which;
+  try { localStorage.setItem('user-server', which); } catch (e) {}
+  document.querySelectorAll('#user-switcher .switcher-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-user-server') === which);
+  });
+  positionUserPill();
+  var show = document.getElementById('view-user-' + which);
+  if (!show) return;
+  // same leave/enter as the admin switchView: old cards slide out with
+  // blur, then hide and the new view's cards slide in staggered
+  if (userSwitchTimer) { clearTimeout(userSwitchTimer); userSwitchTimer = null; }
+  document.querySelectorAll('#view-user .view.leaving').forEach(function (v) { v.classList.remove('leaving'); });
+  var cur = document.querySelector('#view-user .view.active');
+  if (cur === show) return;
+  function enter() { show.classList.add('active'); }
+  if (cur) {
+    cur.classList.remove('active');
+    cur.classList.add('leaving');
+    userSwitchTimer = setTimeout(function () {
+      userSwitchTimer = null;
+      cur.classList.remove('leaving');
+      enter();
+    }, 350);
+  } else {
+    enter();
+  }
+}
+
+/* ---- user view: server display names come from servers.json via the
+   user endpoints (never hardcoded, never /api/servers which is admin-only).
+   Static HTML keeps Debian-2/Debian-1 as pre-load fallback labels. ---- */
+var userServerNames = {};
+function userServerName(key) {
+  return userServerNames[key] || (key === 'd1' ? 'Debian-1' : 'Debian-2');
+}
+function applyUserServerNames() {
+  // switcher buttons (static HTML, local first -- order untouched, labels only)
+  document.querySelectorAll('#user-switcher .switcher-btn').forEach(function (b) {
+    b.textContent = userServerName(b.getAttribute('data-user-server'));
+  });
+  // node card titles: protocol only, no server name
+  var titles = [
+    ['#user-card-d1 h2', 'd1', 'Hysteria 2'],
+    ['#user-card-vless-d1 h2', 'd1', 'VLESS + TLS'],
+    ['#user-card-d2 h2', 'local', 'Hysteria 2'],
+    ['#user-card-vless-d2 h2', 'local', 'VLESS + REALITY'],
+  ];
+  titles.forEach(function (t) {
+    var el = document.querySelector(t[0]);
+    if (el) el.textContent = t[2];
+  });
+}
+function applyUserNamesPayload(d) {
+  if (!d) return;
+  if (d.panel_name) applyPanelName(d.panel_name);
+  if (d.updated) applyUpdated(d.updated);
+  if (Array.isArray(d.server_names)) {
+    var map = {};
+    d.server_names.forEach(function (s) { if (s && s.id) map[s.id] = s.name || s.id; });
+    userServerNames = map;
+    applyUserServerNames();
+  }
+}
+function renderUser() {
+  var u = userUsageData;
+  if (!u) return;
+  applyUserNamesPayload(u);
+  // each server has its own traffic card + disabled card + link cards, so
+  // render both inner views; switching only swaps which view is visible
+  ['d1', 'local'].forEach(function (key) {
+    var suf = key;
+    var serverName = userServerName(key);
+    var sv = (u.servers && u.servers[key]) ? u.servers[key] : null;
+    var mt = sv ? sv.month_total : (u.month_total || 0);
+    var tt = sv ? sv.today_total : (u.today_total || 0);
+    var lim = u.limits ? u.limits[key] : u.limit_gb;
+    document.getElementById('u-month-' + suf).textContent = fmtAuto(mt);
+    document.getElementById('u-limit-' + suf).textContent = lim == null ? '不限' : lim + ' GB';
+    document.getElementById('u-left-' + suf).textContent = lim == null ? '不限' : fmtAuto(Math.max(0, lim * 1e9 - mt));
+    document.getElementById('u-today-' + suf).textContent = fmtAuto(tt);
+    document.getElementById('u-today-rx-' + suf).textContent = fmtAuto(sv ? sv.today_rx : (u.today_rx || 0));
+    document.getElementById('u-today-tx-' + suf).textContent = fmtAuto(sv ? sv.today_tx : (u.today_tx || 0));
+    document.getElementById('u-note-' + suf).textContent = serverName + ' · 本月 ' + (u.month || '—') + ' · 今日 ' + (u.today || '—') + ' · 每月 1 号 00:00 重新计算';
+    var badge = document.getElementById('u-badge-' + suf);
+    var disabledHere = u.disabled && u.disabled[key];
+    var over = lim != null && mt >= lim * 1e9;
+    if (!u.enabled) { badge.textContent = u.disabled_reason === 'over_limit' ? '已超限停用' : '已停用'; badge.className = 'badge down'; }
+    else if (disabledHere) { badge.textContent = '本台已超限停用'; badge.className = 'badge down'; }
+    else if (over) { badge.textContent = '已超限'; badge.className = 'badge down'; }
+    else { badge.textContent = '正常'; badge.className = 'badge'; }
+    var pct = lim == null ? 0 : mt / (lim * 1e9) * 100;
+    document.getElementById('u-bar-' + suf).style.width = Math.min(pct, 100) + '%';
+    var dc = document.getElementById('user-disabled-card-' + suf);
+    var dm = document.getElementById('user-disabled-msg-' + suf);
+    var c1 = document.getElementById(key === 'd1' ? 'user-card-d1' : 'user-card-d2');
+    var c2 = document.getElementById(key === 'd1' ? 'user-card-vless-d1' : 'user-card-vless-d2');
+    if (!u.enabled) {
+      c1.classList.add('hidden'); c2.classList.add('hidden');
+      dc.classList.remove('hidden');
+      dm.textContent =
+        u.disabled_reason === 'over_limit'
+          ? '本月流量已超限，节点链接已停用，下月 1 号自动恢复。'
+          : '你的账号已被停用，节点链接已隐藏。请联系管理员重新启用，启用后这里会显示新的专属链接。';
+    } else if (disabledHere) {
+      c1.classList.add('hidden'); c2.classList.add('hidden');
+      dc.classList.remove('hidden');
+      dm.textContent =
+        serverName + ' 本月流量已超限，该台节点链接已停用，下月 1 号自动恢复。切换到另一台仍可使用。';
+    } else {
+      dc.classList.add('hidden');
+      c1.classList.remove('hidden'); c2.classList.remove('hidden');
+    }
+  });
+  var d = userLinksData;
+  if (d) {
+    document.getElementById('u-link-d2').textContent = d.d2 || '链接加载失败，请刷新重试';
+    document.getElementById('u-link-d1').textContent = d.d1 || '链接加载失败，请刷新重试';
+    document.getElementById('u-link-vless-d2').textContent = d.vless_d2 || '链接加载失败，请刷新重试';
+    document.getElementById('u-link-vless-d1').textContent = d.vless_d1 || '链接加载失败，请刷新重试';
+  }
+}
+function loadUser() {
+  document.querySelectorAll('#user-switcher .switcher-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-user-server') === userServer);
+  });
+  positionUserPill();
+  fetch('/api/user/usage', { cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(u){
+      userUsageData = u;
+      renderUser();
+      fetch('/api/user/links', { cache: 'no-store' })
+        .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d){
+          userLinksData = d;
+          applyUserNamesPayload(d);
+          renderUser();
+        })
+        .catch(function(){
+          document.getElementById('u-link-d2').textContent = '链接加载失败，请刷新重试';
+          document.getElementById('u-link-d1').textContent = '链接加载失败，请刷新重试';
+          document.getElementById('u-link-vless-d2').textContent = '链接加载失败，请刷新重试';
+          document.getElementById('u-link-vless-d1').textContent = '链接加载失败，请刷新重试';
+        });
+    })
+    .catch(function(){
+      ['d1', 'local'].forEach(function (k) {
+        var n = document.getElementById('u-note-' + k);
+        if (n) n.textContent = '用量加载失败，请刷新重试';
+      });
+      document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '数据加载失败，请刷新重试'; });
+    });
+}
+
+function loadUsers() {
+  var wrap = document.getElementById('users-table-wrap');
+  fetch('/api/admin/users', { cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){
+      var all = d.users || [];
+      var admin = null;
+      var users = [];
+      all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
+      var html = '<table class="utable"><tr><th>用户</th><th>密码</th><th>VLESS</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>操作</th></tr>';
+      if (admin) {
+        html += '<tr><td data-label="用户">admin</td><td data-label="密码">—</td><td data-label="VLESS">—</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td>'
+          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
+      }
+      users.forEach(function(x){
+        var lim = x.limits || {};
+        var limHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + (lim.d1 == null ? '不限' : lim.d1 + ' GB') + '</span></div>'
+          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (lim.local == null ? '不限' : lim.local + ' GB') + '</span></div>';
+        var sv = x.servers || {};
+        var mD1 = sv.d1 ? sv.d1.month_total : 0;
+        var mLocal = sv.local ? sv.local.month_total : 0;
+        var monthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(mD1) + '</span></div>'
+          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(mLocal) + '</span></div>';
+        var overD1 = lim.d1 != null && mD1 >= lim.d1 * 1e9;
+        var overLocal = lim.local != null && mLocal >= lim.local * 1e9;
+        var dis = x.disabled || {};
+        var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
+        var pw = pending ? '未设置' : esc(x.hy2_password || '—');
+        var vless = (x.vless_uuid && x.vless_port)
+          ? '<div class="vless-row"><span class="vless-uuid">' + esc(x.vless_uuid.slice(0, 8)) + '…</span><button class="small ghost vless-copy" data-uuid="' + esc(x.vless_uuid) + '" onclick="copyStr(this.dataset.uuid, this)">复制</button></div><div class="vless-port">端口 ' + x.vless_port + '</div>'
+          : '—';
+        var status;
+        if (pending) status = '待设置密码';
+        else if (!x.enabled) status = x.disabled_reason === 'over_limit' ? '已超限停用' : (x.disabled_reason === 'rotated' ? '轮换后停用' : '已停用');
+        else if (dis.d1 && dis.local) status = '两台超限停用';
+        else if (dis.d1) status = 'D1 超限停用';
+        else if (dis.local) status = 'D2 超限停用';
+        else if (overD1 && overLocal) status = '两台已超限';
+        else if (overD1) status = 'D1 已超限';
+        else if (overLocal) status = 'D2 已超限';
+        else status = '正常';
+        var cls = (pending || !x.enabled || dis.d1 || dis.local || overD1 || overLocal) ? 'bad' : '';
+        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="密码" style="font-family:monospace; word-break:break-all;">' + pw + '</td><td data-label="VLESS">' + vless + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td>'
+          + '<td class="acts"><div class="acts-grid">'
+          + '<button class="small ghost" onclick="setLimit(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', this)">改上限</button>'
+          + '<button class="small ghost" onclick="resetPw(\'' + esc(x.username) + '\', this, ' + (x.allow_pw_change !== 0) + ')">改密码</button>'
+          + (pending ? '' : '<button class="small ghost" onclick="toggleUser(\'' + esc(x.username) + '\', ' + (x.enabled ? 'false' : 'true') + ', this)">' + (x.enabled ? '停用' : '启用') + '</button>')
+          + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
+          + '</div></td></tr>';
+      });
+      html += '</table>';
+      if (!users.length) {
+        html += '<div class="meta" style="margin-top:10px;">还没有普通用户。在上面添加一个，用户就能用自己的账号登录、看到专属 HY2 与 VLESS 链接和自己的流量。</div>';
+      }
+      wrap.innerHTML = html;
+    })
+    .catch(function(){ wrap.innerHTML = '<div class="err">用户列表加载失败，请刷新重试</div>'; });
+}
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+
+function addUser(btn) {
+  var name = document.getElementById('nu-name').value.trim();
+  var limD1 = document.getElementById('nu-limit-d1').value.trim();
+  var limLocal = document.getElementById('nu-limit-local').value.trim();
+  var err = document.getElementById('nu-err');
+  err.textContent = '';
+  if (!name) { err.textContent = '用户名必填。'; return; }
+  var body = { username: name, limits: { d1: limD1 === '' ? null : Number(limD1), local: limLocal === '' ? null : Number(limLocal) } };
+  btn.disabled = true;
+  btn.textContent = '添加中…';
+  fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error((res.d && res.d.error) || '添加失败');
+      document.getElementById('nu-name').value = '';
+      document.getElementById('nu-limit-d1').value = '';
+      document.getElementById('nu-limit-local').value = '';
+      var token = res.d.setup_token || '';
+      lastRegUser = name;
+      lastRegLink = location.origin + location.pathname + '?setup=1&user=' + encodeURIComponent(name) + '&token=' + encodeURIComponent(token);
+      showRegModal(name, token, lastRegLink, btn);
+      loadUsers();
+    })
+    .catch(function(e){ err.textContent = e.message; })
+    .finally(function(){ btn.disabled = false; btn.textContent = '添加用户'; });
+}
+
+function setLimit(username, curD1, curLocal, btn) {
+  showConfirm(
+    '设置 ' + username + ' 的每月流量上限',
+    '按台分别填，单位 GB，留空表示不限。某台超限只停那台的节点。',
+    btn,
+    function(v){
+      if (v === undefined) return;
+      var d1 = (v[0] || '').trim();
+      var local = (v[1] || '').trim();
+      var body = { limits: { d1: d1 === '' ? null : Number(d1), local: local === '' ? null : Number(local) } };
+      if ((d1 !== '' && !(body.limits.d1 > 0)) || (local !== '' && !(body.limits.local > 0))) { showToast('上限须为正数，或留空表示不限。', true); return; }
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/limit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+          loadUsers();
+        })
+        .catch(function(e){ showToast('设置失败：' + e.message, true); });
+    },
+    { inputs: [
+      { label: adminServerName('d1', 'Debian-1') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curD1 == null ? '' : String(curD1) },
+      { label: adminServerName('local', 'Debian-2') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curLocal == null ? '' : String(curLocal) },
+    ] }
+  );
+}
+
+function resetPw(username, btn, allowPwChange) {
+  showConfirm(
+    '给 ' + username + ' 设置新密码',
+    '新密码至少 6 位；同时也是他的 HY2 新密码，旧链接立刻失效。',
+    btn,
+    function(v){
+      if (!v) return;
+      var pw = v[0];
+      var allow = !!v[1];
+      if ((pw || '').length < 6) { showToast('密码至少 6 位。', true); return; }
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, allow_pw_change: allow }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
+          loadUsers();
+          showToast('密码已改。' + username + ' 的 HY2 链接已换新，旧链接已失效。');
+        })
+        .catch(function(e){ showToast('修改失败：' + e.message, true); });
+    },
+    { inputs: [
+      { label: '新密码', type: 'password', placeholder: '新密码（至少 6 位）' },
+      { label: '允许该用户自行修改密码', type: 'checkbox', value: allowPwChange !== false },
+    ] }
+  );
+}
+
+function resetAdminPw(btn) {
+  showConfirm(
+    '修改管理员密码',
+    '新密码至少 6 位；只改面板登录密码，不影响 HY2 密码与节点链接。',
+    btn,
+    function(v){
+      if (v === undefined) return;
+      if ((v || '').length < 6) { showToast('密码至少 6 位。', true); return; }
+      fetch('/api/admin/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: v }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
+          showToast('管理员密码已修改。');
+        })
+        .catch(function(e){ showToast('修改失败：' + e.message, true); });
+    },
+    { input: true, inputType: 'password', inputPlaceholder: '新密码（至少 6 位）' }
+  );
+}
+
+function toggleUser(username, enable, btn) {
+  var title = enable ? ('确定要启用 ' + username + ' 吗？') : ('确定要停用 ' + username + ' 吗？');
+  var body = enable ? '他的 HY2 链接将恢复可用。' : '他的 HY2 链接会立刻失效。';
+  showConfirm(title, body, btn, function(){
+    fetch('/api/admin/users/' + encodeURIComponent(username) + '/enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enable }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res){
+        if (!res.ok) throw new Error((res.d && res.d.error) || '操作失败');
+        loadUsers();
+      })
+      .catch(function(e){ showToast('操作失败：' + e.message, true); });
+  });
+}
+
+function delUser(username, btn) {
+  showConfirm(
+    '确定要删除用户 ' + username + ' 吗？',
+    '他的 HY2 链接会立刻失效，流量记录也会清除。这个操作不可恢复。',
+    btn,
+    function(){
+      fetch('/api/admin/users/' + encodeURIComponent(username), { method: 'DELETE' })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '删除失败');
+          loadUsers();
+        })
+        .catch(function(e){ showToast('删除失败：' + e.message, true); });
+    }
+  );
+}
+
+/* ---- background: Micro Slats (React Bits, David Haz — reactbits.dev) ----
+   Ported from the original React/ogl MicroSlats component (MIT + Commons Clause)
+   to vanilla WebGL2: no React, no ogl, no CDN. All GLSL shaders are copied
+   verbatim from the original MicroSlats.jsx; only the render pipeline
+   (programs, render targets, fluid passes) is rewritten with raw WebGL2 calls.
+   Original: https://github.com/DavidHDev/react-bits
+   Registry: https://reactbits.dev/r/MicroSlats-JS-CSS.json
+   Settings: user-supplied JSX props (supersedes the earlier URL params):
+   preset swell, color #202160, glintColor #b2afaf, backgroundColor #000000,
+   slatWidth 5, slatHeight 15, gap 3, roundness 0.75, interactive,
+   cursorStrength 0.45, cursorSize 40, swirl 0, trail 1.4, lean 0, intro,
+   speed 0.3, glint 0.15, perspective 0.35, fog 0.25, introDuration 2.6;
+   the rest from the 'swell' preset (scale 1.5, direction 250, chop 0.55,
+   stretch 0, contrast 1.25). */
+(function(){
+  var canvas = document.getElementById('bg-slats');
+  if (!canvas || !canvas.getContext) return;
+  var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  var S = {
+    color: [0x20 / 255, 0x21 / 255, 0x60 / 255, 1],           // #202160
+    glintColor: [0xb2 / 255, 0xaf / 255, 0xaf / 255, 1],      // #b2afaf
+    backgroundColor: [0, 0, 0, 1],                            // #000000
+    slatWidth: 5, slatHeight: 15, gap: 3, roundness: 0.75,
+    scale: 1.5, speed: 0.3, direction: 250, chop: 0.55, stretch: 0,
+    glint: 0.15, contrast: 1.25, perspective: 0.35, fog: 0.25,
+    interactive: true, cursorStrength: 0.45, cursorSize: 40,
+    swirl: 0, trail: 1.4, lean: 0, intro: true, introDuration: 2.6,
+    paused: false
+  };
+
+  var FLUID_SIZE = 96;
+  var PRESSURE_STEPS = 16;
+  var SPLAT_FORCE = 6900;
+  var SPLASH_JETS = 3;
+  var PIXEL_BUDGET = 4.5e6;
+
+  function clamp(value, min, max){ return Math.min(Math.max(value, min), max); }
+
+  var gl = null;
+  try {
+    gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+  } catch (e) { gl = null; }
+  if (!gl) return; // no WebGL2: fall back to the plain #0f1419 body background
+
+  /* ---------- shaders (verbatim from MicroSlats.jsx) ---------- */
+  var passVertex = `#version 300 es
+in vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+  var fluidVertex = `#version 300 es
+in vec2 position;
+uniform vec2 uTexel;
+out vec2 vUv;
+out vec2 vL;
+out vec2 vR;
+out vec2 vT;
+out vec2 vB;
+void main() {
+  vUv = position * 0.5 + 0.5;
+  vL = vUv - vec2(uTexel.x, 0.0);
+  vR = vUv + vec2(uTexel.x, 0.0);
+  vT = vUv + vec2(0.0, uTexel.y);
+  vB = vUv - vec2(0.0, uTexel.y);
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+  var fluidHead = `#version 300 es
+precision highp float;
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+out vec4 fragColor;
+`;
+
+  var splatFragment = fluidHead + `
+uniform sampler2D uTarget;
+uniform float uAspect;
+uniform vec2 uPoint;
+uniform vec3 uValue;
+uniform float uRadius;
+void main() {
+  vec2 offset = vUv - uPoint;
+  offset.x *= uAspect;
+  float falloff = exp(-dot(offset, offset) / uRadius);
+  fragColor = vec4(texture(uTarget, vUv).xyz + uValue * falloff, 1.0);
+}
+`;
+
+  var curlFragment = fluidHead + `
+uniform sampler2D uVelocity;
+void main() {
+  float left = texture(uVelocity, vL).y;
+  float right = texture(uVelocity, vR).y;
+  float top = texture(uVelocity, vT).x;
+  float bottom = texture(uVelocity, vB).x;
+  fragColor = vec4(0.5 * (right - left - top + bottom), 0.0, 0.0, 1.0);
+}
+`;
+
+  var vorticityFragment = fluidHead + `
+uniform sampler2D uVelocity;
+uniform sampler2D uCurl;
+uniform float uSwirl;
+uniform float uDt;
+void main() {
+  float left = texture(uCurl, vL).x;
+  float right = texture(uCurl, vR).x;
+  float top = texture(uCurl, vT).x;
+  float bottom = texture(uCurl, vB).x;
+  float middle = texture(uCurl, vUv).x;
+  vec2 force = 0.5 * vec2(abs(top) - abs(bottom), abs(right) - abs(left));
+  force = force / (length(force) + 0.0001) * uSwirl * middle;
+  force.y = -force.y;
+  vec2 velocity = texture(uVelocity, vUv).xy + force * uDt;
+  fragColor = vec4(clamp(velocity, -1000.0, 1000.0), 0.0, 1.0);
+}
+`;
+
+  var divergenceFragment = fluidHead + `
+uniform sampler2D uVelocity;
+void main() {
+  vec2 middle = texture(uVelocity, vUv).xy;
+  float left = vL.x < 0.0 ? -middle.x : texture(uVelocity, vL).x;
+  float right = vR.x > 1.0 ? -middle.x : texture(uVelocity, vR).x;
+  float top = vT.y > 1.0 ? -middle.y : texture(uVelocity, vT).y;
+  float bottom = vB.y < 0.0 ? -middle.y : texture(uVelocity, vB).y;
+  fragColor = vec4(0.5 * (right - left + top - bottom), 0.0, 0.0, 1.0);
+}
+`;
+
+  var pressureFragment = fluidHead + `
+uniform sampler2D uPressure;
+uniform sampler2D uDivergence;
+void main() {
+  float left = texture(uPressure, vL).x;
+  float right = texture(uPressure, vR).x;
+  float top = texture(uPressure, vT).x;
+  float bottom = texture(uPressure, vB).x;
+  float divergence = texture(uDivergence, vUv).x;
+  fragColor = vec4((left + right + top + bottom - divergence) * 0.25, 0.0, 0.0, 1.0);
+}
+`;
+
+  var projectFragment = fluidHead + `
+uniform sampler2D uPressure;
+uniform sampler2D uVelocity;
+void main() {
+  float left = texture(uPressure, vL).x;
+  float right = texture(uPressure, vR).x;
+  float top = texture(uPressure, vT).x;
+  float bottom = texture(uPressure, vB).x;
+  vec2 velocity = texture(uVelocity, vUv).xy - vec2(right - left, top - bottom);
+  fragColor = vec4(velocity, 0.0, 1.0);
+}
+`;
+
+  var advectFragment = fluidHead + `
+uniform sampler2D uVelocity;
+uniform sampler2D uSource;
+uniform vec2 uTexel;
+uniform float uDt;
+uniform float uFade;
+void main() {
+  vec2 from = vUv - uDt * texture(uVelocity, vUv).xy * uTexel;
+  fragColor = texture(uSource, from) / (1.0 + uFade * uDt);
+}
+`;
+
+  var scaleFragment = fluidHead + `
+uniform sampler2D uSource;
+uniform float uValue;
+void main() {
+  fragColor = texture(uSource, vUv) * uValue;
+}
+`;
+
+  var fieldFragment = `#version 300 es
+precision highp float;
+uniform vec2 uSize;
+uniform vec4 uGrid;
+uniform vec2 uOrigin;
+uniform vec2 uSlat;
+uniform float uTime;
+uniform float uScale;
+uniform float uDirection;
+uniform float uChop;
+uniform float uStretch;
+uniform float uGlint;
+uniform float uContrast;
+uniform float uPerspective;
+uniform float uFog;
+uniform float uIntro;
+uniform sampler2D tVelocity;
+uniform sampler2D tInk;
+uniform vec2 uFluidTexel;
+uniform float uFluid;
+uniform float uInk;
+uniform float uLean;
+out vec4 fragColor;
+
+const float TURN[4] = float[4](0.0, -0.95, 0.78, 1.62);
+const float LENGTH[4] = float[4](2.6, 1.7, 1.12, 0.76);
+const float HEIGHT[4] = float[4](1.0, 0.75, 0.5, 0.3);
+const float SHIFT[4] = float[4](0.0, 2.3, 4.1, 1.1);
+
+void main() {
+  vec2 cell = floor(gl_FragCoord.xy);
+  float row = uGrid.y - 1.0 - cell.y;
+  vec2 center = uOrigin + vec2(cell.x, row) * uGrid.zw + uSlat * 0.5;
+  float v = clamp(center.y / uSize.y, 0.0, 1.0);
+
+  vec2 flow = vec2(0.0);
+  float ink = 0.0;
+  if (uFluid > 0.5) {
+    vec2 fluidUv = clamp(vec2(center.x / uSize.x, 1.0 - center.y / uSize.y), 0.0, 1.0);
+    flow = texture(tVelocity, fluidUv).xy * uFluidTexel * uSize;
+    ink = texture(tInk, fluidUv).x;
+  }
+
+  float horizon = mix(8.0, 0.5, uPerspective);
+  float depth = (1.0 + horizon) / (v + horizon);
+  vec2 world = vec2((center.x - uSize.x * 0.5) / uSize.y * depth, (depth - 1.0) * horizon * 2.2);
+  world -= flow * 0.00018 * depth;
+  world /= max(uScale, 0.05);
+
+  float meander = 0.55 * sin(dot(world, vec2(0.23, 0.41)) * 0.9 + uTime * 0.13)
+    + 0.3 * sin(dot(world, vec2(-0.37, 0.19)) * 1.4 - uTime * 0.09);
+
+  float steep = uChop * 0.45;
+  float height = 0.0;
+  float total = 0.0;
+  for (int i = 0; i < 4; i++) {
+    float angle = uDirection + TURN[i];
+    vec2 heading = vec2(cos(angle), sin(angle));
+    float k = 6.2831853 / LENGTH[i];
+    float omega = sqrt(9.81 * k) * 0.35;
+    float theta = k * dot(world, heading) - omega * uTime + SHIFT[i] + meander * (0.6 + 0.3 * float(i));
+    height += HEIGHT[i] * (cos(theta) + steep * cos(2.0 * theta));
+    total += HEIGHT[i] * (1.0 + steep);
+  }
+  float level = clamp(0.5 + 0.5 * height / (total * 0.85), 0.0, 1.0);
+  float crest = smoothstep(0.6, 1.0, level);
+  float glint = crest * crest * uGlint;
+
+  float haze = mix(1.0, 1.0 - uFog, pow(1.0 - v, 1.4));
+  float light = (pow(level, uContrast) + glint * 0.8) * haze;
+  float glow = 1.0 - exp(-max(ink, 0.0) * uInk * 1.6);
+  light = 1.0 - (1.0 - clamp(light, 0.0, 1.0)) * (1.0 - glow);
+
+  float front = uIntro * 1.35;
+  float reveal = 1.0 - smoothstep(front - 0.35, front, v);
+  float sweep = exp(-pow((v - front + 0.22) / 0.07, 2.0)) * (1.0 - uIntro);
+  light = (light + sweep * 0.8) * reveal;
+  light = max(light, 0.045 * reveal);
+  float span = mix(1.0 - uStretch, 1.0, level) + glow * 0.3;
+  span = clamp(span, 0.08, 1.0) * mix(0.1, 1.0, reveal);
+  float tint = clamp(max(glint * 1.4, glow * 0.9) + sweep, 0.0, 1.0);
+  float lean = clamp(flow.x / 1400.0, -1.0, 1.0) * uLean * reveal;
+
+  fragColor = vec4(clamp(light, 0.0, 1.0), span, tint, 0.5 + 0.5 * lean);
+}
+`;
+
+  var slatFragment = `#version 300 es
+precision highp float;
+uniform sampler2D tField;
+uniform vec2 uSize;
+uniform float uDpr;
+uniform vec4 uGrid;
+uniform vec2 uOrigin;
+uniform vec2 uSlat;
+uniform float uRound;
+uniform float uTilt;
+uniform vec3 uColor;
+uniform vec3 uGlintColor;
+uniform vec4 uBackground;
+out vec4 fragColor;
+
+float pill(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uSize.y * uDpr - gl_FragCoord.y) / uDpr;
+  vec2 local = p - uOrigin;
+  vec2 cell = floor(local / uGrid.zw);
+  vec4 background = vec4(uBackground.rgb * uBackground.a, uBackground.a);
+  vec4 slat = vec4(0.0);
+  int reach = uTilt > 0.0 ? 1 : 0;
+  for (int dx = -1; dx <= 1; dx++) {
+    if (abs(dx) > reach) continue;
+    vec2 neighbour = cell + vec2(float(dx), 0.0);
+    if (neighbour.x < 0.0 || neighbour.y < 0.0 || neighbour.x >= uGrid.x || neighbour.y >= uGrid.y) continue;
+    vec4 field = texelFetch(tField, ivec2(int(neighbour.x), int(uGrid.y - 1.0 - neighbour.y)), 0);
+    vec2 offset = local - neighbour * uGrid.zw - uSlat * 0.5;
+    float angle = (field.a - 0.5) * 2.0 * uTilt;
+    float c = cos(angle);
+    float s = sin(angle);
+    vec2 turned = vec2(c * offset.x + s * offset.y, c * offset.y - s * offset.x);
+    vec2 halfSize = vec2(uSlat.x * 0.5, uSlat.y * 0.5 * field.g);
+    float radius = uRound * min(halfSize.x, halfSize.y);
+    float alpha = clamp(0.5 - pill(turned, halfSize, radius) * uDpr, 0.0, 1.0) * field.r;
+    if (alpha > slat.a) slat = vec4(mix(uColor, uGlintColor, field.b) * alpha, alpha);
+  }
+  fragColor = slat + background * (1.0 - slat.a);
+}
+`;
+
+  /* ---------- vanilla WebGL2 helpers (replaces ogl) ---------- */
+  function compileShader(type, src){
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      console.warn('[micro-slats] shader compile failed: ' + gl.getShaderInfoLog(sh));
+      return null;
+    }
+    return sh;
+  }
+
+  function createProgram(vsSrc, fsSrc){
+    var vs = compileShader(gl.VERTEX_SHADER, vsSrc);
+    var fs = compileShader(gl.FRAGMENT_SHADER, fsSrc);
+    if (!vs || !fs) return null;
+    var prog = gl.createProgram();
+    gl.bindAttribLocation(prog, 0, 'position');
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.warn('[micro-slats] program link failed: ' + gl.getProgramInfoLog(prog));
+      return null;
+    }
+    var uniforms = {};
+    var count = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+    for (var i = 0; i < count; i++) {
+      var info = gl.getActiveUniform(prog, i);
+      uniforms[info.name] = gl.getUniformLocation(prog, info.name);
+    }
+    return { prog: prog, u: uniforms };
+  }
+
+  function setU(p, name, v){
+    var loc = p.u[name];
+    if (loc === null || loc === undefined) return;
+    if (typeof v === 'number') gl.uniform1f(loc, v);
+    else if (v.length === 2) gl.uniform2fv(loc, v);
+    else if (v.length === 3) gl.uniform3fv(loc, v);
+    else if (v.length === 4) gl.uniform4fv(loc, v);
+  }
+
+  function setTex(p, name, unit, tex){
+    var loc = p.u[name];
+    if (loc === null || loc === undefined) return;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(loc, unit);
+  }
+
+  function createTexture(w, h, opts){
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, opts.minFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, opts.magFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, opts.internalFormat, w, h, 0, opts.format, opts.type, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return tex;
+  }
+
+  function createTarget(w, h, isFloat){
+    var tex;
+    if (isFloat) {
+      tex = createTexture(w, h, { type: gl.HALF_FLOAT, internalFormat: gl.RGBA16F, format: gl.RGBA, minFilter: gl.LINEAR, magFilter: gl.LINEAR });
+    } else {
+      tex = createTexture(w, h, { type: gl.UNSIGNED_BYTE, internalFormat: gl.RGBA, format: gl.RGBA, minFilter: gl.NEAREST, magFilter: gl.NEAREST });
+    }
+    var fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    var ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!ok) { gl.deleteFramebuffer(fbo); gl.deleteTexture(tex); return null; }
+    return { fbo: fbo, tex: tex, width: w, height: h };
+  }
+
+  function disposeTarget(t){
+    if (!t) return;
+    gl.deleteFramebuffer(t.fbo);
+    gl.deleteTexture(t.tex);
+  }
+
+  /* fullscreen triangle (ogl Triangle: [-1,-1], [3,-1], [-1,3]) */
+  var triVAO = gl.createVertexArray();
+  gl.bindVertexArray(triVAO);
+  var triBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+  function beginDraw(p, target){
+    if (target) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+      gl.viewport(0, 0, target.width, target.height);
+    } else {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    }
+    gl.useProgram(p.prog);
+    gl.bindVertexArray(triVAO);
+  }
+
+  function draw(){ gl.drawArrays(gl.TRIANGLES, 0, 3); }
+
+  /* 1x1 blank texture (placeholder sampler, same role as ogl's empty Texture) */
+  var blankTex = (function(){
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return tex;
+  })();
+
+  var floatTargets = !!(
+    gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')
+  );
+
+  /* ---------- programs ---------- */
+  var fieldProg, slatProg, splatProg, curlProg, vorticityProg, divergenceProg, pressureProg, projectProg, advectProg, scaleProg;
+  var fluidPrograms = [];
+  try {
+    fieldProg = createProgram(passVertex, fieldFragment);
+    slatProg = createProgram(passVertex, slatFragment);
+    splatProg = createProgram(fluidVertex, splatFragment);
+    curlProg = createProgram(fluidVertex, curlFragment);
+    vorticityProg = createProgram(fluidVertex, vorticityFragment);
+    divergenceProg = createProgram(fluidVertex, divergenceFragment);
+    pressureProg = createProgram(fluidVertex, pressureFragment);
+    projectProg = createProgram(fluidVertex, projectFragment);
+    advectProg = createProgram(fluidVertex, advectFragment);
+    scaleProg = createProgram(fluidVertex, scaleFragment);
+    fluidPrograms = [splatProg, curlProg, vorticityProg, divergenceProg, pressureProg, projectProg, advectProg, scaleProg];
+  } catch (e) {
+    console.warn('[micro-slats] program setup failed, background disabled:', e);
+    return;
+  }
+  if (!fieldProg || !slatProg || !splatProg || !curlProg || !vorticityProg || !divergenceProg || !pressureProg || !projectProg || !advectProg || !scaleProg) return;
+
+  var fluidTexel = [1, 1];
+  function syncFluidTexel(){
+    for (var i = 0; i < fluidPrograms.length; i++) {
+      gl.useProgram(fluidPrograms[i].prog);
+      setU(fluidPrograms[i], 'uTexel', fluidTexel);
+    }
+  }
+  syncFluidTexel();
+
+  /* ---------- state (same names/roles as the original) ---------- */
+  var width = 1, height = 1, dpr = 1;
+  var raf = 0, last = performance.now(), time = 0, introClock = 0;
+  var visible = true, alive = true;
+  var fluid = null, fluidUntil = 0, fluidDirty = false, splashTurn = 0;
+  var splats = [];
+  var pointer = { x: 0, y: 0, tracked: false };
+  var resizePending = false;
+
+  var fieldTarget = createTarget(1, 1, false);
+  if (!fieldTarget) return;
+
+  function swapPair(w, h){
+    return {
+      read: createTarget(w, h, true),
+      write: createTarget(w, h, true),
+      swap: function(){ var next = this.read; this.read = this.write; this.write = next; }
+    };
+  }
+
+  function disposeFluid(){
+    if (!fluid) return;
+    [fluid.velocity, fluid.ink, fluid.pressure].forEach(function(pair){
+      disposeTarget(pair.read);
+      disposeTarget(pair.write);
+    });
+    disposeTarget(fluid.divergence);
+    disposeTarget(fluid.curl);
+    fluid = null;
+  }
+
+  function buildFluid(){
+    if (!floatTargets) return;
+    var aspect = width / height;
+    var w = Math.max(8, Math.round(aspect >= 1 ? FLUID_SIZE * aspect : FLUID_SIZE));
+    var h = Math.max(8, Math.round(aspect >= 1 ? FLUID_SIZE : FLUID_SIZE / aspect));
+    if (fluid && fluid.width === w && fluid.height === h) return;
+    disposeFluid();
+    fluid = {
+      width: w, height: h,
+      velocity: swapPair(w, h),
+      ink: swapPair(w, h),
+      pressure: swapPair(w, h),
+      divergence: createTarget(w, h, true),
+      curl: createTarget(w, h, true)
+    };
+    if (!fluid.velocity.read || !fluid.velocity.write || !fluid.ink.read || !fluid.ink.write ||
+        !fluid.pressure.read || !fluid.pressure.write || !fluid.divergence || !fluid.curl) {
+      disposeFluid();
+      floatTargets = false;
+      return;
+    }
+    fluidTexel = [1 / w, 1 / h];
+    syncFluidTexel();
+  }
+
+  function applyResize(){
+    width = Math.max(1, window.innerWidth);
+    height = Math.max(1, window.innerHeight);
+    dpr = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(PIXEL_BUDGET / (width * height)));
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    buildFluid();
+  }
+
+  function resize(){
+    resizePending = true;
+    start();
+  }
+
+  function layout(s){
+    var slatW = clamp(s.slatWidth, 1, 64);
+    var slatH = clamp(s.slatHeight, 2, 240);
+    var gapSize = clamp(s.gap, 0, 64);
+    var pitchX = slatW + gapSize;
+    var pitchY = slatH + gapSize;
+    var cols = Math.min(2048, Math.ceil((width + gapSize) / pitchX) + 1);
+    var rows = Math.min(2048, Math.ceil((height + gapSize) / pitchY) + 1);
+    var originX = (width - (cols * pitchX - gapSize)) / 2;
+    var originY = (height - (rows * pitchY - gapSize)) / 2;
+    if (fieldTarget.width !== cols || fieldTarget.height !== rows) {
+      disposeTarget(fieldTarget);
+      fieldTarget = createTarget(cols, rows, false);
+      if (!fieldTarget) { fieldTarget = createTarget(1, 1, false); }
+    }
+    var tilt = Math.min(0.42, Math.asin(clamp((pitchX * 1.5 - slatW * 0.5) / (slatH * 0.5), 0, 1)));
+    return { slatW: slatW, slatH: slatH, tilt: tilt, grid: [cols, rows, pitchX, pitchY], origin: [originX, originY] };
+  }
+
+  function splat(pair, point, value, radius){
+    beginDraw(splatProg, pair.write);
+    setU(splatProg, 'uTexel', fluidTexel);
+    setTex(splatProg, 'uTarget', 0, pair.read.tex);
+    setU(splatProg, 'uAspect', width / height);
+    setU(splatProg, 'uPoint', point);
+    setU(splatProg, 'uValue', value);
+    setU(splatProg, 'uRadius', radius);
+    draw();
+    pair.swap();
+  }
+
+  function stepFluid(f, dt, s){
+    if (s.swirl > 0) {
+      beginDraw(curlProg, f.curl);
+      setU(curlProg, 'uTexel', fluidTexel);
+      setTex(curlProg, 'uVelocity', 0, f.velocity.read.tex);
+      draw();
+
+      beginDraw(vorticityProg, f.velocity.write);
+      setU(vorticityProg, 'uTexel', fluidTexel);
+      setTex(vorticityProg, 'uVelocity', 0, f.velocity.read.tex);
+      setTex(vorticityProg, 'uCurl', 1, f.curl.tex);
+      setU(vorticityProg, 'uSwirl', clamp(s.swirl, 0, 2) * 40);
+      setU(vorticityProg, 'uDt', dt);
+      draw();
+      f.velocity.swap();
+    }
+
+    beginDraw(divergenceProg, f.divergence);
+    setU(divergenceProg, 'uTexel', fluidTexel);
+    setTex(divergenceProg, 'uVelocity', 0, f.velocity.read.tex);
+    draw();
+
+    beginDraw(scaleProg, f.pressure.write);
+    setU(scaleProg, 'uTexel', fluidTexel);
+    setTex(scaleProg, 'uSource', 0, f.pressure.read.tex);
+    setU(scaleProg, 'uValue', 0.8);
+    draw();
+    f.pressure.swap();
+
+    for (var i = 0; i < PRESSURE_STEPS; i++) {
+      beginDraw(pressureProg, f.pressure.write);
+      setU(pressureProg, 'uTexel', fluidTexel);
+      setTex(pressureProg, 'uPressure', 0, f.pressure.read.tex);
+      setTex(pressureProg, 'uDivergence', 1, f.divergence.tex);
+      draw();
+      f.pressure.swap();
+    }
+
+    beginDraw(projectProg, f.velocity.write);
+    setU(projectProg, 'uTexel', fluidTexel);
+    setTex(projectProg, 'uPressure', 0, f.pressure.read.tex);
+    setTex(projectProg, 'uVelocity', 1, f.velocity.read.tex);
+    draw();
+    f.velocity.swap();
+
+    var fade = 1 / clamp(s.trail, 0.1, 10);
+    beginDraw(advectProg, f.velocity.write);
+    setU(advectProg, 'uTexel', fluidTexel);
+    setU(advectProg, 'uDt', dt);
+    setTex(advectProg, 'uVelocity', 0, f.velocity.read.tex);
+    setTex(advectProg, 'uSource', 1, f.velocity.read.tex);
+    setU(advectProg, 'uFade', fade * 1.4);
+    draw();
+    f.velocity.swap();
+
+    beginDraw(advectProg, f.ink.write);
+    setU(advectProg, 'uTexel', fluidTexel);
+    setU(advectProg, 'uDt', dt);
+    setTex(advectProg, 'uVelocity', 0, f.velocity.read.tex);
+    setTex(advectProg, 'uSource', 1, f.ink.read.tex);
+    setU(advectProg, 'uFade', fade);
+    draw();
+    f.ink.swap();
+  }
+
+  function clearFluid(f){
+    [f.velocity, f.ink, f.pressure].forEach(function(pair){
+      beginDraw(scaleProg, pair.write);
+      setU(scaleProg, 'uTexel', fluidTexel);
+      setTex(scaleProg, 'uSource', 0, pair.read.tex);
+      setU(scaleProg, 'uValue', 0);
+      draw();
+      pair.swap();
+    });
+  }
+
+  function frame(now){
+    raf = 0;
+    try {
+      if (resizePending) {
+        resizePending = false;
+        applyResize();
+      }
+      if (!alive) return;
+      var s = S;
+      var dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+
+      if (!s.paused && !reducedMotion) time += dt * s.speed;
+      introClock = s.intro && !reducedMotion ? introClock + dt / Math.max(0.2, s.introDuration) : 1;
+      var introLinear = Math.min(introClock, 1);
+      var introEase = introLinear < 0.5 ? 4 * introLinear * introLinear * introLinear : 1 - Math.pow(-2 * introLinear + 2, 3) / 2;
+
+      if (fluid && splats.length) {
+        var radius = Math.pow(clamp(s.cursorSize, 4, 600) / height, 2) * 0.35;
+        var aspect = width / height;
+        for (var k = 0; k < splats.length; k++) {
+          var sp = splats[k];
+          var u = sp[0], v = sp[1], du = sp[2], dv = sp[3], turn = sp[4];
+          if (turn === null) {
+            splat(fluid.velocity, [u, v], [du * SPLAT_FORCE, dv * SPLAT_FORCE, 0], radius);
+            splat(fluid.ink, [u, v], [0.13, 0, 0], radius);
+            continue;
+          }
+          var jet = radius * 0.55;
+          var reach = Math.sqrt(jet * 0.5) * 1.9;
+          var push = SPLAT_FORCE * 0.08;
+          for (var j = 0; j < SPLASH_JETS; j++) {
+            var angle = turn + (j / SPLASH_JETS) * Math.PI * 2;
+            var dx = Math.cos(angle);
+            var dy = Math.sin(angle);
+            var point = [u + (dx * reach) / aspect, v + dy * reach];
+            var spin = [(dx - dy) * Math.SQRT1_2 * push, (dy + dx) * Math.SQRT1_2 * push, 0];
+            splat(fluid.velocity, point, spin, jet);
+            splat(fluid.ink, point, [0.75, 0, 0], jet);
+          }
+          splat(fluid.ink, [u, v], [0.45, 0, 0], radius);
+        }
+        splats.length = 0;
+        fluidDirty = true;
+      }
+      var fluidActive = fluid !== null && now < fluidUntil;
+      if (fluid) {
+        if (fluidActive) stepFluid(fluid, Math.min(Math.max(dt, 1 / 240), 1 / 30), s);
+        else if (fluidDirty) {
+          clearFluid(fluid);
+          fluidDirty = false;
+        }
+      }
+
+      var grid = layout(s);
+
+      beginDraw(fieldProg, fieldTarget);
+      setU(fieldProg, 'uSize', [width, height]);
+      setU(fieldProg, 'uGrid', grid.grid);
+      setU(fieldProg, 'uOrigin', grid.origin);
+      setU(fieldProg, 'uSlat', [grid.slatW, grid.slatH]);
+      setU(fieldProg, 'uTime', time);
+      setU(fieldProg, 'uScale', s.scale);
+      setU(fieldProg, 'uDirection', (s.direction * Math.PI) / 180);
+      setU(fieldProg, 'uChop', clamp(s.chop, 0, 1.5));
+      setU(fieldProg, 'uStretch', clamp(s.stretch, 0, 0.95));
+      setU(fieldProg, 'uGlint', Math.max(0, s.glint));
+      setU(fieldProg, 'uContrast', clamp(s.contrast, 0.2, 4));
+      setU(fieldProg, 'uPerspective', clamp(s.perspective, 0, 1));
+      setU(fieldProg, 'uFog', clamp(s.fog, 0, 1));
+      setU(fieldProg, 'uIntro', introEase);
+      setU(fieldProg, 'uFluid', fluidActive ? 1 : 0);
+      setTex(fieldProg, 'tVelocity', 0, fluid ? fluid.velocity.read.tex : blankTex);
+      setTex(fieldProg, 'tInk', 1, fluid ? fluid.ink.read.tex : blankTex);
+      setU(fieldProg, 'uFluidTexel', fluidTexel);
+      setU(fieldProg, 'uInk', clamp(s.cursorStrength, 0, 3));
+      setU(fieldProg, 'uLean', clamp(s.lean, 0, 1));
+      draw();
+
+      beginDraw(slatProg, null);
+      setTex(slatProg, 'tField', 0, fieldTarget.tex);
+      setU(slatProg, 'uSize', [width, height]);
+      setU(slatProg, 'uDpr', dpr);
+      setU(slatProg, 'uGrid', grid.grid);
+      setU(slatProg, 'uOrigin', grid.origin);
+      setU(slatProg, 'uSlat', [grid.slatW, grid.slatH]);
+      setU(slatProg, 'uRound', clamp(s.roundness, 0, 1));
+      setU(slatProg, 'uTilt', fluidActive && s.lean > 0 ? grid.tilt : 0);
+      setU(slatProg, 'uColor', s.color.slice(0, 3));
+      setU(slatProg, 'uGlintColor', s.glintColor.slice(0, 3));
+      setU(slatProg, 'uBackground', s.backgroundColor);
+      draw();
+
+      var moving = (!s.paused && !reducedMotion && s.speed !== 0) || introClock < 1;
+      if (visible && (moving || fluidActive || fluidDirty)) raf = requestAnimationFrame(frame);
+    } catch (err) {
+      console.warn('[micro-slats] frame error, background stopped:', err);
+      alive = false;
+    }
+  }
+
+  function start(){
+    if (raf || !visible || !alive) return;
+    last = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function locate(e){
+    var w = Math.max(1, window.innerWidth);
+    var h = Math.max(1, window.innerHeight);
+    var x = e.clientX;
+    var y = e.clientY;
+    return { x: x, y: y, u: x / w, v: 1 - y / h, h: h, inside: x >= 0 && y >= 0 && x <= w && y <= h };
+  }
+
+  function queue(u, v, du, dv, turn){
+    if (splats.length > 32) splats.shift();
+    splats.push([u, v, du, dv, turn]);
+    fluidUntil = performance.now() + Math.max(1.5, S.trail * 5) * 1000;
+    start();
+  }
+
+  function onPointerMove(e){
+    var spot = locate(e);
+    if (!fluid || !S.interactive || reducedMotion || !spot.inside) {
+      pointer.tracked = false;
+      return;
+    }
+    if (pointer.tracked && (spot.x !== pointer.x || spot.y !== pointer.y)) {
+      queue(spot.u, spot.v, (spot.x - pointer.x) / spot.h, (pointer.y - spot.y) / spot.h, null);
+    }
+    pointer.x = spot.x;
+    pointer.y = spot.y;
+    pointer.tracked = true;
+  }
+
+  function onPointerDown(e){
+    var spot = locate(e);
+    if (!fluid || !S.interactive || reducedMotion || !spot.inside) return;
+    splashTurn += 2.39996;
+    queue(spot.u, spot.v, 0, 0, splashTurn);
+  }
+
+  function onPointerLeave(){
+    pointer.tracked = false;
+  }
+
+  function onPointerOut(e){
+    if (!e.relatedTarget) onPointerLeave();
+  }
+
+  function onVisibility(){
+    if (!document.hidden) start();
+  }
+
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
+  window.addEventListener('pointerdown', onPointerDown, { passive: true });
+  window.addEventListener('pointerout', onPointerOut, { passive: true });
+  window.addEventListener('blur', onPointerLeave);
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', onVisibility);
+  canvas.addEventListener('webglcontextlost', function(e){
+    e.preventDefault();
+    alive = false;
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }, false);
+
+  var intersectionObserver = new IntersectionObserver(function(entries){
+    visible = entries[0].isIntersecting;
+    start();
+  });
+  intersectionObserver.observe(canvas);
+
+  resize();
+})();
+
+</script>
+</body>
+</html>

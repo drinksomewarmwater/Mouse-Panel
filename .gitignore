@@ -1,0 +1,23 @@
+# 音乐文件（版权原因，永不进仓库）
+*.mp3
+*.flac
+*.wav
+*.ogg
+*.m4a
+panel/music/*
+!panel/music/.gitkeep
+
+# 运行时数据与密钥（敏感，永不进仓库）
+users.db
+links.json
+*.bak
+.env
+*.pem
+*.key
+id_ed25519*
+!id_ed25519_panel.pub
+
+# Python / 临时文件
+__pycache__/
+*.pyc
+.DS_Store
