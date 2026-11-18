@@ -166,7 +166,6 @@ def main():
     cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
     for col, ddl in [
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
-        ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
     ]:
         if col not in cols:
             conn.execute(ddl)
