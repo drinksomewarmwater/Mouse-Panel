@@ -398,7 +398,6 @@ cat > /etc/sing-box/config.json <<EOF
           "enabled": true,
           "handshake": { "server": "www.apple.com", "server_port": 443 },
           "private_key": "$REALITY_PRIV",
-          "public_key": "$REALITY_PUB",
           "short_id": "$SHORT_ID"
         }
       }
