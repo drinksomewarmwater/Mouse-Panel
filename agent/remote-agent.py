@@ -71,6 +71,25 @@ def run(cmd, timeout=30):
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 
+def restart_hysteria():
+    """Restart hysteria-server, tolerating systemd's start rate limit.
+    Restarts in quick succession (toggle then revert, or a failed restart
+    followed by a rollback restart) can hit StartLimitBurst and leave the
+    service in 'failed (start-limit-hit)'. Clearing the failed state
+    before restarting, and retrying once after a pause, avoids that."""
+    run("systemctl reset-failed hysteria-server")
+    run("systemctl restart hysteria-server")
+    time.sleep(2)
+    if run("systemctl is-active hysteria-server")[1] == "active":
+        return
+    time.sleep(5)
+    run("systemctl reset-failed hysteria-server")
+    run("systemctl start hysteria-server")
+    time.sleep(2)
+    if run("systemctl is-active hysteria-server")[1] != "active":
+        raise RuntimeError("hysteria-server did not come back up after restart")
+
+
 def read_hop_range(text):
     """Port-hopping range from the Hysteria listen line: '20000-40000' if
     listen is ':20000-40000', else '' (single port, hopping off)."""
@@ -101,13 +120,10 @@ def set_hop_range(hop_range):
     try:
         with open(HYSTERIA_CFG, "w") as f:
             f.write(new_text)
-        run("systemctl restart hysteria-server")
-        time.sleep(2)
-        if run("systemctl is-active hysteria-server")[1] != "active":
-            raise RuntimeError("hysteria-server not active after restart")
+        restart_hysteria()
     except Exception:
         run("cp %s.bak-hop %s" % (HYSTERIA_CFG, HYSTERIA_CFG))
-        run("systemctl restart hysteria-server")
+        restart_hysteria()
         raise
     return listen
 
