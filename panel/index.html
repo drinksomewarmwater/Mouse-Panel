@@ -610,12 +610,11 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.4 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.5 更新日志</div>
     <ul class="version-list">
-      <li>每用户到期时间：到期后两台同时停用，不自动恢复；重新启用时清掉到期时间</li>
-      <li>同时在线 IP 限制：HY2 建连时检查，0 = 不限；用户列表显示当前在线 IP</li>
-      <li>HY2 端口跳跃：每台可设 UDP 跳跃区间（如 20000-40000），默认关闭，开前须放行该区间 UDP</li>
-      <li>面板顶部加 license / platform / Hysteria 徽章</li>
+      <li>修复用户页链接加载失败（本地 HY2 链接格式化错误）</li>
+      <li>节点名统一为 VPS 名 + 协议名（如 Debian-KR-Hy2、Debian-US-Vless）</li>
+      <li>用户页服务器名不再依赖链接接口，流量接口也返回服务器名</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -742,7 +741,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.4"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+var PANEL_VERSION = "V1.1.5"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
