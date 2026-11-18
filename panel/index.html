@@ -663,6 +663,7 @@
       <li>歌词在线识别改模糊：lrclib 按歌名+歌手查不到时，再只按歌名查一次（文件名里的歌手常是频道名不是真歌手，带歌手查会返回空）；歌词缓存换新 key，旧的“暂无歌词”会重新识别</li>
       <li>上传加进度条：上传时列表里显示“上传中”行，带进度条和百分比，传完变正式曲目，失败显示“上传失败”5 秒；上传改用 XMLHttpRequest 以拿到真实上传进度</li>
       <li>多文件同时上传：一次选多个文件时全部并行上传，列表里每个文件各有一条自己的进度条；每首传完立刻出现在列表里，不用等整批传完</li>
+      <li>无时间戳歌词也能滚动：lrclib 只有纯文本歌词（无时间戳）时，把各行按歌曲时长均匀排开，高亮行跟随播放滚动；时长加载后自动按真实时长重排</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -1109,6 +1110,7 @@ function applyLyricsOpacity() {
 var curLyricsReq = 0;
 var lyricLines = [];
 var lyricSynced = false;
+var lyricSynthetic = false;
 var lyricActiveIdx = -1;
 function normStr(s) {
   return String(s || '').toLowerCase().replace(/[\s\p{P}]/gu, '');
@@ -1285,6 +1287,7 @@ function setLyrics(text) {
   var parsed = parseLrc(text || '');
   lyricLines = parsed.lines;
   lyricSynced = parsed.synced;
+  lyricSynthetic = false;
   lyricActiveIdx = -1;
   var el = document.getElementById('lyrics-lines');
   if (!el) return;
@@ -1292,12 +1295,29 @@ function setLyrics(text) {
     el.innerHTML = '<div class="lyr-empty">暂无歌词</div>';
     return;
   }
+  /* Plain lyrics (no timestamps, e.g. lrclib plainLyrics only): assign
+     synthetic times spread evenly over the song duration so the panel
+     still scrolls and highlights lines as the song plays. The timing is
+     approximate, but a static block that never moves is worse. */
+  if (!lyricSynced) assignSyntheticLyricTimes();
   var html = '';
   lyricLines.forEach(function (ln, i) {
     html += '<div class="lyr-line" data-i="' + i + '">' + esc(ln.text || '　') + '</div>';
   });
   el.innerHTML = html;
   syncLyricsLine();
+}
+/* Spread plain-lyrics lines evenly across the song duration. Uses the
+   real duration when the audio metadata has loaded, else a 240s guess
+   that gets corrected on loadedmetadata. */
+function assignSyntheticLyricTimes() {
+  if (!lyricLines.length) return;
+  var d = bgm.duration;
+  if (!(d > 0) || !isFinite(d)) d = 240;
+  var n = lyricLines.length;
+  lyricLines.forEach(function (ln, i) { ln.t = (i / n) * d; });
+  lyricSynced = true;
+  lyricSynthetic = true;
 }
 function centerActiveLyric(instant) {
   var box = document.getElementById('lyrics-lines');
@@ -1540,6 +1560,16 @@ if (lyrFloat) {
 }
 /* Keep the highlighted lyric in step after a seek. */
 bgm.addEventListener('seeked', syncLyricsLine);
+/* Plain lyrics use a synthetic even spread based on the song duration.
+   If the duration wasn't known when the lyrics loaded, re-spread once
+   the audio metadata arrives so the scrolling stays in step. */
+bgm.addEventListener('loadedmetadata', function () {
+  if (lyricSynthetic && lyricLines.length) {
+    assignSyntheticLyricTimes();
+    lyricActiveIdx = -1;
+    syncLyricsLine();
+  }
+});
 
 function makeQR(elId, text) {
   try {
