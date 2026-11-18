@@ -195,16 +195,17 @@
   #lyrics-float .lyr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #lyrics-float .lyr-close { background: transparent; border: none; color: #8b98a5; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
   #lyrics-float .lyr-close:hover { color: #fff; }
-  #lyrics-lines { overflow: hidden; scrollbar-width: none; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .25s ease; }
+  #lyrics-lines { overflow: hidden; scrollbar-width: none; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .35s cubic-bezier(0.4, 0, 0.2, 1); }
   #lyrics-lines::-webkit-scrollbar { display: none; }
-  /* lyrics cover: hidden in the 1-line view, shown when the panel expands */
-  .lyr-cover { display: none; padding: 0 12px 8px; }
-  #lyrics-float.expanded .lyr-cover { display: block; }
+  /* lyrics cover: grows + fades in with the panel (display can't animate,
+     so it uses max-height + opacity like the lines, not display:none). */
+  .lyr-cover { max-height: 0; opacity: 0; overflow: hidden; padding: 0 12px; transition: max-height .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .3s ease, padding .3s ease; }
+  #lyrics-float.expanded .lyr-cover { max-height: 64px; opacity: 1; padding: 0 12px 8px; }
   /* floating lyrics: 1 line by default; 5 lines when pinned (click) or hovered (mouse only) */
   #lyrics-float.expanded #lyrics-lines { max-height: 140px; }
   @media (hover: hover) {
     #lyrics-float:hover #lyrics-lines { max-height: 140px; }
-    #lyrics-float:hover .lyr-cover { display: block; }
+    #lyrics-float:hover .lyr-cover { max-height: 64px; opacity: 1; padding: 0 12px 8px; }
   }
   .lyr-line { transition: color .2s; }
   .lyr-line.active { color: #e6e6e6; font-weight: 600; }
@@ -663,6 +664,7 @@
       <li>版本更新日志列表可滚动（无滚动条），标题与关闭按钮固定不动</li>
       <li>悬浮歌词展开时显示歌曲封面（1 行时不显示）</li>
       <li>音乐歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录；普通用户也能自己上传、删除、排序歌曲</li>
+      <li>悬浮歌词展开动画改顺滑：封面改用高度+淡入过渡（不再是 display 瞬切），歌词行改用 .35s 标准缓动</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
