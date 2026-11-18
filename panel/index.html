@@ -85,7 +85,8 @@
   .version-footer { text-align: center; color: #8b98a5; font-size: 12px; margin-top: 24px; padding-top: 14px; border-top: 1px solid rgba(42, 52, 68, 0.8); }
   .version-footer span { cursor: pointer; }
   .version-footer span:hover { color: #e6e6e6; text-decoration: underline; }
-  .version-list { color: #c7d0db; font-size: 14px; line-height: 1.9; margin: 0 0 16px; padding-left: 18px; }
+  .version-list { color: #c7d0db; font-size: 14px; line-height: 1.9; margin: 0 0 16px; padding-left: 18px; max-height: 55vh; overflow-y: auto; scrollbar-width: none; }
+  .version-list::-webkit-scrollbar { display: none; }
   .version-link { color: #1d9bf0; font-size: 14px; text-decoration: none; }
   .version-link:hover { text-decoration: underline; }
   .stat { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -655,6 +656,7 @@
       <li>歌词设置新增透明度调节（0–100%，越高越透明，默认 12%），只改悬浮歌词面板的背景深浅，歌词文字不受影响；滑杆轨道顶到两端，拉到 100% 不再留一截</li>
       <li>悬浮歌词去掉右侧滚动条，不可手动滚动（当前行仍自动居中滚动）</li>
       <li>修改权限新增“端口跳跃”设置：可按用户开关 HY2 端口跳跃（链接带不带 mport），默认开启；只有服务器开了跳跃区间时才生效</li>
+      <li>版本更新日志列表可滚动（无滚动条），标题与关闭按钮固定不动</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
