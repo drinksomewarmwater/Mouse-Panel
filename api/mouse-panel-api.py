@@ -917,9 +917,24 @@ def admin_local_hy2_link():
     return local_hy2_link("admin", pw)
 
 
+def to_idna(domain):
+    """ASCII (punycode) form of a domain for use in links and SNI.
+
+    Hysteria's TLS (Go) cannot match a Unicode SNI such as
+    us.煤球小狗.de5.net to the punycode certificate the server holds
+    (us.xn--yet590c35ai8a.de5.net), so the handshake fails with
+    'tls: internal error' and Clash reports a timeout. Converting the
+    domain to its IDNA form makes clients send a punycode SNI, which
+    matches the cert. Already-ASCII domains pass through unchanged."""
+    try:
+        return domain.encode("idna").decode("ascii")
+    except Exception:
+        return domain
+
+
 def local_hy2_link(username, pw, hop_enabled=True):
     node = load_node()
-    domain = node["domain"]
+    domain = to_idna(node["domain"])
     name = local_server_name()
     q = "sni=%s" % domain
     hop = local_hop_range()
@@ -1095,7 +1110,7 @@ def set_local_hop_range(hop_range):
 
 def remote_hy2_link(server, username, pw, hop_enabled=True):
     d = remote_read(server)
-    domain = d.get("domain") or server.get("host", "")
+    domain = to_idna(d.get("domain") or server.get("host", ""))
     port = d.get("hy2_port") or 443
     name = server.get("name") or "远程"
     q = "sni=%s" % domain
