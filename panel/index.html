@@ -648,6 +648,7 @@
       <li>服务器设置改成一级菜单（面板名称 / 各 VPS 设置 / 添加服务器 / 流量预警设置 / 运行日志），点一项开二级弹窗，需要确认或再选的内容是三级弹窗</li>
       <li>用户列表：操作列收窄（两按钮改纵向排布），密码列与 VLESS 列取消显示；密码改在“修改权限 → 修改密码”弹窗里显示当前密码</li>
       <li>用户列表列调整：用户列改名“用户名”，新增“权限”列（管理员/用户），状态列只分正常/停用/故障；到期时间与 IP 拆成两列，管理员到期显示永久，IP 列（含管理员）沿用公用用户的格式；管理员的每月上限与本月已用也按 D1/D2 两行显示</li>
+      <li>打开面板默认显示第一台 VPS 的详情（本地服务器排第一），不再恢复上次看的标签页</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -2734,7 +2735,6 @@ function switchView(which) {
   var cur = document.querySelector('.view.active');
   document.getElementById('users-nav-btn').classList.toggle('on', which === 'users');
   if (which === 'users') loadUsers();
-  if (which === 'd1' || which === 'd2') { try { localStorage.setItem('panel-view-v2', which); } catch (e) {} }
   if (cur === show) return;
   function enter() { show.classList.add('active'); }
   if (cur) {
@@ -2986,9 +2986,9 @@ function showApp() {
     document.getElementById('admin-nav').classList.remove('hidden');
     document.getElementById('view-user').classList.add('hidden');
     loadServers();
-    var saved = null;
-    try { saved = localStorage.getItem('panel-view-v2'); } catch (e) {}
-    switchView(saved === 'd1' || saved === 'd2' ? saved : 'd2');
+    // 默认打开第一台 VPS（本地服务器排第一）的详情，不再恢复上次看的标签页。
+    var firstSrv = sortServers(SERVERS)[0];
+    switchView(firstSrv ? serverViewKey(firstSrv) : 'd2');
     loadAdmin();
   } else {
     document.getElementById('admin-nav').classList.add('hidden');
