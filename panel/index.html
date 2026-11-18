@@ -630,6 +630,7 @@
     <ul class="version-list">
       <li>用户管理新增“修改权限”按钮：除删除外的操作（流量设置、修改密码、到期时间、IP限制、停用用户）都收进弹窗，点一项再打开对应的设置弹窗；已停用用户显示“启用用户”</li>
       <li>到期时间改用滚轮选择器（与运行日志下载的自定义时间同一组件），只显示年月日，不用时分秒；可一键“设为永久”</li>
+      <li>滚轮选择器改成循环滚动：月/日/时/分/秒上下都能一直滚（1 月往上是 12 月），天数按已选年月自动算（闰年 2 月 29 天）；年份不循环，范围扩到 1900–2999 年</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -2437,14 +2438,30 @@ function logWheelUnitValue(unit) {
 }
 function logWheelSetUnit(unit, v) {
   if (!logWheelDate) return;
-  if (unit === 'year') logWheelDate.setFullYear(v);
-  else if (unit === 'month') logWheelDate.setMonth(v - 1);
+  if (unit === 'year') {
+    // 先把日钳到目标年份该月的最大天数（闰年 2 月），再改年，避免
+    // Date.setFullYear 在 2 月 29 日 -> 平年时溢出到 3 月 1 日。
+    var maxD = logWheelDaysInMonth(v, logWheelDate.getMonth());
+    if (logWheelDate.getDate() > maxD) logWheelDate.setDate(maxD);
+    logWheelDate.setFullYear(v);
+  }
+  else if (unit === 'month') {
+    // 同理：先钳日（1 月 31 日 -> 2 月会溢出到 3 月），再改月。
+    var maxDm = logWheelDaysInMonth(logWheelDate.getFullYear(), v - 1);
+    if (logWheelDate.getDate() > maxDm) logWheelDate.setDate(maxDm);
+    logWheelDate.setMonth(v - 1);
+  }
   else if (unit === 'day') logWheelDate.setDate(v);
   else if (unit === 'hour') logWheelDate.setHours(v);
   else if (unit === 'minute') logWheelDate.setMinutes(v);
   else if (unit === 'second') logWheelDate.setSeconds(v);
 }
-function logWheelBuildCol(unit, label, min, max) {
+/* 循环滚轮列：loop 为 true 时把 min..max 的值重复拼 5 份，当前值落在中间
+   那份（第 3 份），滚动到首尾两份时再悄悄跳回中间那份的同值项，看起来就
+   一直循环。年份不循环（只有 1 份）。 */
+var LOG_WHEEL_COPIES = 5;
+var LOG_WHEEL_MID = 2; // 5 份里的中间那份（0-based）
+function logWheelBuildCol(unit, label, min, max, loop) {
   var wrap = document.createElement('div');
   wrap.className = 'log-wheel-col-wrap';
   var lab = document.createElement('div');
@@ -2453,13 +2470,22 @@ function logWheelBuildCol(unit, label, min, max) {
   var col = document.createElement('div');
   col.className = 'log-wheel-col';
   col.dataset.unit = unit;
+  col.dataset.min = min;
+  col.dataset.max = max;
+  var count = max - min + 1;
+  var copies = loop ? LOG_WHEEL_COPIES : 1;
+  var selCopy = loop ? LOG_WHEEL_MID : 0; // 循环列选中项在中间那份；不循环的只有 1 份
+  col.dataset.copies = copies;
+  col.dataset.count = count;
   var cur = logWheelUnitValue(unit);
-  for (var v = min; v <= max; v++) {
-    var it = document.createElement('div');
-    it.className = 'log-wheel-item' + (v === cur ? ' sel' : '');
-    it.dataset.value = v;
-    it.textContent = logPad(v);
-    col.appendChild(it);
+  for (var c = 0; c < copies; c++) {
+    for (var v = min; v <= max; v++) {
+      var it = document.createElement('div');
+      it.className = 'log-wheel-item' + (c === selCopy && v === cur ? ' sel' : '');
+      it.dataset.value = v;
+      it.textContent = logPad(v);
+      col.appendChild(it);
+    }
   }
   wrap.appendChild(lab);
   wrap.appendChild(col);
@@ -2476,7 +2502,7 @@ function logWheelBuild() {
   wrap.innerHTML = '';
   var y = logWheelDate.getFullYear(), m = logWheelDate.getMonth();
   var allDefs = [
-    { unit: 'year', label: '年', min: 2020, max: 2035 },
+    { unit: 'year', label: '年', min: 1900, max: 2999 },
     { unit: 'month', label: '月', min: 1, max: 12 },
     { unit: 'day', label: '日', min: 1, max: logWheelDaysInMonth(y, m) },
     { unit: 'hour', label: '时', min: 0, max: 23 },
@@ -2484,8 +2510,10 @@ function logWheelBuild() {
     { unit: 'second', label: '秒', min: 0, max: 59 },
   ];
   var defs = allDefs.filter(function (d) { return logWheelUnits.indexOf(d.unit) !== -1; });
+  // 年份不循环，范围 1900–2999；月/日/时/分/秒循环。
+  var loopUnits = { month: true, day: true, hour: true, minute: true, second: true };
   defs.forEach(function (d) {
-    var colWrap = logWheelBuildCol(d.unit, d.label, d.min, d.max);
+    var colWrap = logWheelBuildCol(d.unit, d.label, d.min, d.max, !!loopUnits[d.unit]);
     wrap.appendChild(colWrap);
     var col = colWrap.querySelector('.log-wheel-col');
     logWheelCenterCol(col); // set scrollTop before attaching listener (no scroll event)
@@ -2506,6 +2534,24 @@ function logWheelOnScroll(col) {
     var it = logWheelCentered(col);
     if (!it) return;
     var v = parseInt(it.dataset.value, 10);
+    // 循环列：居中项落在首尾两份时，悄悄跳回中间那份的同值项（视觉上无变化），
+    // 这样上下都能一直滚。跳的时候先关掉 scroll-snap，避免浏览器把它当成一次滚动吸附。
+    var copies = parseInt(col.dataset.copies || '1', 10);
+    if (copies > 1) {
+      var count = parseInt(col.dataset.count, 10);
+      var min = parseInt(col.dataset.min, 10);
+      var items = col.querySelectorAll('.log-wheel-item');
+      var idx = 0;
+      items.forEach(function (x, i) { if (x === it) idx = i; });
+      var copy = Math.floor(idx / count);
+      if (copy !== LOG_WHEEL_MID) {
+        var targetIdx = LOG_WHEEL_MID * count + (v - min);
+        col.style.scrollSnapType = 'none';
+        col.scrollTop = targetIdx * 50;
+        setTimeout(function () { col.style.scrollSnapType = ''; }, 60);
+        it = items[targetIdx];
+      }
+    }
     col.querySelectorAll('.log-wheel-item').forEach(function (x) { x.classList.toggle('sel', x === it); });
     if (logWheelUnitValue(unit) === v) return;
     logWheelSetUnit(unit, v);
@@ -2516,7 +2562,7 @@ function logWheelOnScroll(col) {
       var dayCol = document.querySelector('.log-wheel-col[data-unit="day"]');
       if (dayCol) {
         var oldWrap = dayCol.parentNode;
-        var newWrap = logWheelBuildCol('day', '日', 1, maxD);
+        var newWrap = logWheelBuildCol('day', '日', 1, maxD, true);
         oldWrap.parentNode.replaceChild(newWrap, oldWrap);
         var nc = newWrap.querySelector('.log-wheel-col');
         logWheelCenterCol(nc);
