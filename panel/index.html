@@ -665,6 +665,7 @@
       <li>悬浮歌词展开时显示歌曲封面（1 行时不显示）</li>
       <li>音乐歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录；普通用户也能自己上传、删除、排序歌曲</li>
       <li>悬浮歌词展开动画改顺滑：封面改用高度+淡入过渡（不再是 display 瞬切），歌词行改用 .35s 标准缓动</li>
+      <li>修歌单串号：登录时重拉歌单、打开播放列表时重拉、上传成功立即显示新歌；之前切换账号后内存里的歌单没更新，管理员会看到普通用户的歌</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1802,7 +1803,9 @@ var playlistModalCard = document.getElementById('playlist-modal-card');
 var playlistSrcBtn = null;
 function showPlaylistModal(btn) {
   playlistSrcBtn = btn;
-  renderPlaylist();
+  /* Always re-fetch on open: the in-memory list may be stale (e.g. a
+     song uploaded in another tab, or after switching accounts). */
+  loadPlaylist();
   modalShow(playlistModal, playlistModalCard, btn);
 }
 function hidePlaylistModal() {
@@ -1977,7 +1980,15 @@ function plUploadFiles(files) {
     fd.append('file', f);
     fetch('/api/music/upload', { method: 'POST', body: fd })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) { if (res.ok && res.d.track) done++; else failed++; })
+      .then(function (res) {
+        if (res.ok && res.d.track) {
+          done++;
+          /* Show the new song at once instead of waiting for the
+             re-fetch at the end (the list used to need a page refresh). */
+          if (!bgmTrackById(res.d.track.id)) PLAYLIST.push(res.d.track);
+          renderPlaylist();
+        } else failed++;
+      })
       .catch(function () { failed++; })
       .finally(next);
   }
@@ -3031,6 +3042,10 @@ function showLogin() {
 function showApp() {
   document.getElementById('login-view').classList.add('hidden');
   document.getElementById('app-view').classList.remove('hidden');
+  /* Per-user playlists: reload the list on every login, otherwise the
+     in-memory list keeps the previous account's songs after switching
+     users (admin would see the regular user's songs and vice versa). */
+  loadPlaylist();
   /* Default playback: the login click counts as a user gesture, so play()
      here is allowed; if already logged in (no gesture), bgmTryAutoplay
      uses the muted-then-unmute trick, and the first tap/click starts it
