@@ -64,6 +64,13 @@
   #add-user-fields input { display: block; width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
   #add-user-err { color: #f87171; font-size: 13px; margin-bottom: 12px; min-height: 0; }
   #add-user-err:not(:empty) { margin-bottom: 12px; }
+  /* ---- 服务器设置二级弹窗（单个 VPS / 流量预警 / 运行日志）：字段纵向排布 ---- */
+  #srv-fields .confirm-modal-field, #alerts-fields .confirm-modal-field, #logs-fields .confirm-modal-field { margin-bottom: 14px; }
+  #srv-fields .confirm-modal-field:last-child, #alerts-fields .confirm-modal-field:last-child, #logs-fields .confirm-modal-field:last-child { margin-bottom: 18px; }
+  #srv-fields label, #alerts-fields label, #logs-fields label { display: block; color: #8b98a5; font-size: 13px; margin: 0 0 6px; }
+  #srv-fields input, #alerts-fields input, #logs-fields input { display: block; width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  #srv-fields .hint, #alerts-fields .hint, #logs-fields .hint { margin-bottom: 14px; }
+  #srv-del-btn, #alerts-modal .danger { margin-right: auto; }
   .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); z-index: 100; background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); color: #e6e6e6; font-size: 14px; line-height: 1.5; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); max-width: calc(100vw - 48px); opacity: 0; visibility: hidden; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; pointer-events: none; }
   .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
   .toast.err { border-color: rgba(248, 113, 113, 0.6); color: #fca5a5; }
@@ -130,10 +137,9 @@
   .utable th, .utable td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #2a3444; vertical-align: middle; }
   .utable th { color: #8b98a5; font-size: 11px; font-weight: normal; }
   .utable .acts { white-space: normal; }
-  .utable th:last-child { width: 132px; }
-  .utable .acts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; justify-items: center; align-items: center; width: max-content; margin: 0 auto; }
+  .utable th:last-child { width: 92px; }
+  .utable .acts-grid { display: grid; grid-template-columns: 1fr; gap: 6px; justify-items: center; align-items: center; width: max-content; margin: 0 auto; }
   .utable .acts-grid button { margin: 0; white-space: nowrap; padding: 5px 9px; font-size: 12px; }
-  .utable .acts-grid button:only-child { grid-column: 1 / -1; }
   .utable th, .utable td { position: relative; }
   .utable th:not(:last-child)::after, .utable td:not(:last-child)::after { content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 1px; height: 55%; background: #2a3444; }
   .utable td { transition: transform 0.18s ease; }
@@ -142,10 +148,6 @@
   .utable .sv-line { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
   .utable .sv-line + .sv-line { margin-top: 5px; }
   .utable .sv-line .sv-k { color: #8b98a5; flex-shrink: 0; }
-  .utable .vless-row { display: flex; align-items: center; white-space: nowrap; }
-  .utable .vless-uuid { font-family: monospace; font-size: 12px; }
-  .utable .vless-copy { padding: 3px 8px; font-size: 12px; margin-left: 6px; }
-  .utable .vless-port { font-size: 12px; color: #8b98a5; margin-top: 3px; white-space: nowrap; }
   .utable .cell-sub { font-size: 12px; color: #8b98a5; margin-top: 3px; white-space: nowrap; }
   /* mobile: each user row becomes a card, with the column name shown on the left */
   @media (max-width: 640px) {
@@ -236,17 +238,6 @@
   .playlist-drop { border: 1px dashed #4a5568; border-radius: 10px; padding: 14px; text-align: center; color: #8b98a5; font-size: 13px; margin-bottom: 14px; }
   .playlist-drop.drag-over { border-color: #1d9bf0; color: #a5d6ff; background: rgba(29, 155, 240, 0.08); }
   /* --- servers settings modal --- */
-  .srv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid #2a3444; }
-  .srv-name-input { flex: 1; min-width: 120px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 10px; font-size: 14px; }
-  .srv-quota-label { display: flex; align-items: center; gap: 4px; color: #8b98a5; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-  .srv-quota-input { width: 84px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 8px; font-size: 14px; }
-  .srv-hop { display: flex; align-items: center; gap: 8px; flex-basis: 100%; flex-wrap: wrap; }
-  .srv-hop-label { display: flex; align-items: center; gap: 4px; color: #8b98a5; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-  .srv-hop-input { width: 130px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 8px; font-size: 14px; }
-  .srv-hop-status { color: #8b98a5; font-size: 12px; }
-  .srv-hop-hint { flex-basis: 100%; color: #8b98a5; font-size: 12px; }
-  .srv-info { color: #8b98a5; font-size: 12px; flex-shrink: 0; }
-  .servers-add { border-top: 1px solid #2a3444; padding-top: 14px; margin-top: 6px; }
   #servers-modal-card { max-height: calc(100vh - 40px); overflow-y: auto; }
   /* confirm / registration modals stay above the playlist & servers modals */
   #confirm-modal, #reg-modal { z-index: 70; }
@@ -654,6 +645,8 @@
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
       <li>修改权限二级弹窗关闭后菜单保留；所有弹窗统一点空白处收回</li>
       <li>添加用户改成弹窗填写（用户名、流量上限、到期时间、IP 限制），到期时间与修改权限里统一用滚轮选择器</li>
+      <li>服务器设置改成一级菜单（面板名称 / 各 VPS 设置 / 添加服务器 / 流量预警设置 / 运行日志），点一项开二级弹窗，需要确认或再选的内容是三级弹窗</li>
+      <li>用户列表：操作列收窄（两按钮改纵向排布），密码列与 VLESS 列取消显示；密码改在“修改权限 → 修改密码”弹窗里显示当前密码</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -682,63 +675,71 @@
 <div class="confirm-modal" id="servers-modal">
   <div class="confirm-modal-card" id="servers-modal-card" style="width:460px;">
     <div class="confirm-modal-title">服务器设置</div>
-    <div class="servers-add" id="panel-name-section">
-      <div class="confirm-modal-title" style="margin-bottom:8px;">面板名称</div>
-      <div class="field">
-        <div><label>名称</label><input id="cfg-panel-name" type="text" placeholder="面板名称" maxlength="32"></div>
-      </div>
-      <div class="btnrow">
-        <button onclick="savePanelName(this)">保存</button>
-      </div>
-      <div class="hint">1–32 个字符，保存后立即生效，标题、登录页与 Telegram 提醒开头都会跟着变。</div>
+    <div class="perm-actions" id="servers-modal-actions"></div>
+    <div class="confirm-modal-btns">
+      <button id="servers-close-btn">关闭</button>
     </div>
-    <div id="servers-list"></div>
-    <div class="servers-add">
-      <div class="field">
-        <div><label>名字</label><input id="srv-add-name" type="text" placeholder="比如 Debian-3" maxlength="32"></div>
-        <div><label>主机 / IP</label><input id="srv-add-host" type="text" placeholder="IP 或域名"></div>
-        <div><label>端口</label><input id="srv-add-port" type="number" min="1" max="65535" placeholder="22"></div>
-        <div><label>每月额度（GB）</label><input id="srv-add-quota" type="number" min="1" max="1000000" placeholder="比如 2000"></div>
-      </div>
-      <button id="srv-add-btn" onclick="addServer(this)">添加服务器</button>
-      <div class="hint">添加后先做 SSH 连通性测试；不通也会保存，之后要在目标机上安装 agent 并授权本面板的 SSH 公钥。</div>
+  </div>
+</div>
+
+<!-- 二级弹窗：单个 VPS 的设置（名字、每月额度、端口跳跃；远程服务器可删除） -->
+<div class="confirm-modal" id="srv-modal">
+  <div class="confirm-modal-card" id="srv-modal-card">
+    <div class="confirm-modal-title" id="srv-modal-title">服务器设置</div>
+    <div id="srv-fields">
+      <div class="confirm-modal-field"><label>名字</label><input id="srv-name" type="text" maxlength="32"></div>
+      <div class="confirm-modal-field"><label>每月额度（GB，留空 = 不限）</label><input id="srv-quota" type="number" min="1" max="1000000" step="1" placeholder="GB"></div>
+      <div class="confirm-modal-field"><label>端口跳跃（UDP 区间，留空 = 关闭）</label><input id="srv-hop" type="text" placeholder="20000-40000"></div>
+      <div class="meta" id="srv-hop-status" style="margin-bottom:10px;"></div>
+      <div class="hint">开启后 HY2 不再监听单个端口，改为监听该 UDP 区间，链接会带 mport 参数；需在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。</div>
+      <div class="meta" id="srv-info"></div>
     </div>
-    <div class="servers-add" id="alerts-section">
-      <div class="confirm-modal-title" style="margin-bottom:8px;">流量预警</div>
-      <div class="field">
-        <div><label>Telegram Bot Token</label><input id="al-token" type="password" placeholder="未设置" autocomplete="off"></div>
-        <div><label>Telegram Chat ID</label><input id="al-chat" type="text" placeholder="比如 123456789" autocomplete="off"></div>
-      </div>
-      <div class="field">
-        <div><label>提醒阈值（%）</label><input id="al-alert" type="number" min="0" max="100" step="1" placeholder="80"></div>
-        <div><label>自动停用阈值（%）</label><input id="al-disable" type="number" min="0" max="100" step="1" placeholder="95"></div>
-      </div>
-      <div id="al-status" class="meta">加载中…</div>
-      <div class="btnrow" style="margin-top:10px;">
-        <button class="ghost" onclick="testAlerts(this)">发送测试消息</button>
-        <button onclick="saveAlerts(this)">保存</button>
-        <button class="danger" onclick="deleteAlerts(this)">删除机器人配置</button>
-      </div>
+    <div class="confirm-modal-btns">
+      <button class="danger" id="srv-del-btn">删除</button>
+      <button class="ghost" id="srv-cancel-btn">取消</button>
+      <button id="srv-ok-btn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 二级弹窗：流量预警设置（与原来服务器设置里的流量预警同一套输入与接口） -->
+<div class="confirm-modal" id="alerts-modal">
+  <div class="confirm-modal-card" id="alerts-modal-card">
+    <div class="confirm-modal-title">流量预警设置</div>
+    <div id="alerts-fields">
+      <div class="confirm-modal-field"><label>Telegram Bot Token</label><input id="al-token" type="password" placeholder="未设置" autocomplete="off"></div>
+      <div class="confirm-modal-field"><label>Telegram Chat ID</label><input id="al-chat" type="text" placeholder="比如 123456789" autocomplete="off"></div>
+      <div class="confirm-modal-field"><label>提醒阈值（%）</label><input id="al-alert" type="number" min="0" max="100" step="1" placeholder="80"></div>
+      <div class="confirm-modal-field"><label>自动停用阈值（%）</label><input id="al-disable" type="number" min="0" max="100" step="1" placeholder="95"></div>
+      <div id="al-status" class="meta" style="margin-bottom:10px;">加载中…</div>
       <div class="hint">先在 Telegram 里找 @BotFather 新建机器人拿到 Token，再找 @userinfobot 查自己的 Chat ID。每月达到提醒阈值发一次提醒，达到停用阈值自动停节点（本机直接停，远程服务器需手动停），每月 1 号重置。恢复节点需手动启动服务。Token 留空表示不改，保存后只显示末尾 4 位。</div>
     </div>
-    <div class="servers-add" id="logs-section">
-      <div class="confirm-modal-title" style="margin-bottom:8px;">运行日志</div>
-      <div class="field">
-        <div><label>时间范围</label><button type="button" class="log-range-btn" id="log-range-btn"><span id="log-range-label">全部</span><span class="log-range-caret">▾</span></button></div>
-      </div>
+    <div class="confirm-modal-btns">
+      <button class="ghost" onclick="testAlerts(this)">发送测试消息</button>
+      <button class="danger" onclick="deleteAlerts(this)">删除机器人配置</button>
+      <button class="ghost" id="alerts-cancel-btn">取消</button>
+      <button id="alerts-ok-btn" onclick="saveAlerts(this)">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 二级弹窗：运行日志（与原来服务器设置里的运行日志同一套控件与接口） -->
+<div class="confirm-modal" id="logs-modal">
+  <div class="confirm-modal-card" id="logs-modal-card">
+    <div class="confirm-modal-title">运行日志</div>
+    <div id="logs-fields">
+      <div class="confirm-modal-field"><label>时间范围</label><button type="button" class="log-range-btn" id="log-range-btn"><span id="log-range-label">全部</span><span class="log-range-caret">▾</span></button></div>
       <div id="log-custom" class="log-custom-wrap">
         <div class="field">
           <div><label>开始时间</label><button type="button" class="log-wheel-field empty" id="log-from-btn">请选择开始时间</button></div>
           <div><label>结束时间</label><button type="button" class="log-wheel-field empty" id="log-to-btn">请选择结束时间</button></div>
         </div>
       </div>
-      <div class="btnrow">
-        <button onclick="downloadAdminLogs(this)">下载日志</button>
-      </div>
       <div class="hint">导出面板后端（API）的运行日志，用于定位问题。选「自定义时间段」后点时间可滑动选择年月日时分秒。日志只含请求行与运行信息，不含密码、口令与节点链接。</div>
     </div>
-    <div class="confirm-modal-btns" style="margin-top:16px;">
-      <button class="ghost" id="servers-close-btn">关闭</button>
+    <div class="confirm-modal-btns">
+      <button class="ghost" id="logs-cancel-btn">取消</button>
+      <button id="logs-ok-btn" onclick="downloadAdminLogs(this)">下载日志</button>
     </div>
   </div>
 </div>
@@ -1774,8 +1775,8 @@ function permGo(fn) {
   var u = permUser;
   if (u) fn(u, btn);
 }
-function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, btn) {
-  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange };
+function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, hy2Password, btn) {
+  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
@@ -1783,7 +1784,7 @@ function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, a
   box.innerHTML = '';
   var items = [
     { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limD1, u.limLocal, b); } },
-    { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange); } },
+    { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
     { label: 'IP限制', fn: function(u, b){ setIpLimit(u.username, u.ipLimit, b); } },
   ];
@@ -2028,17 +2029,8 @@ function applyUpdated(ts) {
   document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (ts || '—'); });
 }
 /* ---- HY2 端口跳跃：每台服务器的 hop_range，由 /api/alerts 的 servers 条目
-   提供（loadAlerts 里更新）；renderServersList 用它渲染输入框与状态。 ---- */
+   提供（loadAlerts 里更新）；单个 VPS 设置弹窗用它回填跳跃输入框。 ---- */
 var HOP_BY_ID = {};
-function applyHopRanges() {
-  document.querySelectorAll('.srv-row').forEach(function (row) {
-    var hop = HOP_BY_ID[row.getAttribute('data-id')] || '';
-    var input = row.querySelector('.srv-hop-input');
-    var status = row.querySelector('.srv-hop-status');
-    if (input && document.activeElement !== input) input.value = hop;
-    if (status) status.textContent = hop ? ('已开启：' + hop) : '未开启';
-  });
-}
 function loadServers() {
   return fetch('/api/servers', { cache: 'no-store' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -2095,30 +2087,17 @@ function positionPill() {
 renderServerTabs();
 applyAdminServerNames();
 
-/* ---- servers settings modal ---- */
+/* ---- servers settings modal: 一级菜单（面板名称 / 各 VPS 设置 / 添加服务器 /
+   流量预警设置 / 运行日志），点一项开二级弹窗；二级弹窗里需要确认或再选的
+   （删服务器、日志时间范围、日志滚轮）是三级弹窗。菜单本身点空白处或“关闭”收回。 ---- */
 var serversModal = document.getElementById('servers-modal');
 var serversModalCard = document.getElementById('servers-modal-card');
 var serversSrcBtn = null;
 function showServersModal(btn) {
   serversSrcBtn = btn;
-  document.getElementById('cfg-panel-name').value = document.getElementById('panel-name').textContent;
-  renderServersList();
-  loadAlerts();
+  renderServersMenu();
+  loadAlerts(); // 后台刷新 HOP_BY_ID 与预警弹窗里的字段
   modalShow(serversModal, serversModalCard, btn);
-}
-function savePanelName(btn) {
-  var v = (document.getElementById('cfg-panel-name').value || '').trim();
-  if (!v || v.length > 32) { showToast('面板名称须为 1–32 个字符。', true); return; }
-  btn.disabled = true;
-  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panel_name: v }) })
-    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-    .then(function (res) {
-      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
-      applyPanelName(v);
-      showToast('面板名称已更新。');
-    })
-    .catch(function (e) { showToast('保存失败：' + e.message, true); })
-    .finally(function () { btn.disabled = false; });
 }
 function hideServersModal() {
   modalHide(serversModal, serversModalCard, serversSrcBtn);
@@ -2126,34 +2105,123 @@ function hideServersModal() {
 }
 serversModal.addEventListener('click', function (e) { if (e.target === serversModal) hideServersModal(); });
 document.getElementById('servers-close-btn').addEventListener('click', hideServersModal);
-function renderServersList() {
-  var wrap = document.getElementById('servers-list');
-  if (!SERVERS.length) { wrap.innerHTML = '<div class="meta">暂无服务器。</div>'; return; }
-  var html = '';
+function renderServersMenu() {
+  var box = document.getElementById('servers-modal-actions');
+  box.innerHTML = '';
+  var items = [{ label: '面板名称', fn: function (b) { srvMenuPanelName(b); } }];
   sortServers(SERVERS).forEach(function (s) {
-    html += '<div class="srv-row" data-id="' + esc(s.id) + '">'
-      + '<input type="text" class="srv-name-input" value="' + esc(s.name) + '" maxlength="32">'
-      + '<label class="srv-quota-label">每月额度 <input type="number" class="srv-quota-input" min="1" max="1000000" step="1" value="' + (s.quota_gb == null ? '' : s.quota_gb) + '" placeholder="GB"> GB</label>'
-      + '<button class="small ghost" onclick="saveServerRow(\'' + esc(s.id) + '\', this)">保存</button>'
-      + '<span class="srv-info">' + (s.type === 'local' ? '本地' : '远程') + (s.host ? ' · ' + esc(s.host) + (s.port ? ':' + s.port : '') : '') + '</span>'
-      + (s.type === 'local' ? '' : '<button class="small danger" onclick="delServer(\'' + esc(s.id) + '\', this)">删除</button>')
-      + '<div class="srv-hop">'
-      + '<label class="srv-hop-label">端口跳跃 <input type="text" class="srv-hop-input" value="' + esc(HOP_BY_ID[s.id] || '') + '" placeholder="20000-40000"></label>'
-      + '<button class="small ghost" onclick="saveHop(\'' + esc(s.id) + '\', this)">保存</button>'
-      + '<span class="srv-hop-status">' + (HOP_BY_ID[s.id] ? '已开启：' + esc(HOP_BY_ID[s.id]) : '未开启') + '</span>'
-      + '</div>'
-      + '<div class="srv-hop-hint">开启后 HY2 不再监听单个端口，改为监听该 UDP 区间，链接会带 mport 参数；需在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。</div>'
-      + '</div>';
+    items.push({ label: s.name + ' 设置', fn: (function (id) { return function (b) { showSrvModal(id, b); }; })(s.id) });
   });
-  wrap.innerHTML = html;
+  items.push({ label: '添加服务器', fn: function (b) { srvMenuAddServer(b); } });
+  items.push({ label: '流量预警设置', fn: function (b) { showAlertsModal(b); } });
+  items.push({ label: '运行日志', fn: function (b) { showLogsModal(b); } });
+  items.forEach(function (it) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    b.addEventListener('click', function () { it.fn(this); });
+    box.appendChild(b);
+  });
 }
-function saveServerRow(id, btn) {
-  var row = btn.closest('.srv-row');
-  var input = row ? row.querySelector('.srv-name-input') : null;
-  var quotaInput = row ? row.querySelector('.srv-quota-input') : null;
-  var name = input ? (input.value || '').trim() : '';
+/* 二级：面板名称（confirm 弹窗，单文本输入） */
+function srvMenuPanelName(btn) {
+  var cur = document.getElementById('panel-name').textContent;
+  showConfirm(
+    '面板名称',
+    '1–32 个字符，保存后立即生效，标题、登录页与 Telegram 提醒开头都会跟着变。',
+    btn,
+    function (v) {
+      var name = (v || '').trim();
+      if (!name || name.length > 32) { showToast('面板名称须为 1–32 个字符。', true); return; }
+      fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panel_name: name }) })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+          applyPanelName(name);
+          showToast('面板名称已更新。');
+        })
+        .catch(function (e) { showToast('保存失败：' + e.message, true); });
+    },
+    { input: true, inputValue: cur, inputPlaceholder: '面板名称' }
+  );
+}
+/* 二级：添加服务器（confirm 弹窗，多输入） */
+function srvMenuAddServer(btn) {
+  showConfirm(
+    '添加服务器',
+    '添加后先做 SSH 连通性测试；不通也会保存，之后要在目标机上安装 agent 并授权本面板的 SSH 公钥。',
+    btn,
+    function (vals) {
+      var name = (vals[0] || '').trim();
+      var host = (vals[1] || '').trim();
+      var portRaw = (vals[2] || '').trim();
+      var port = portRaw === '' ? 22 : Number(portRaw);
+      var quotaRaw = (vals[3] || '').trim();
+      if (!name) { showToast('名字必填。', true); return; }
+      if (!host) { showToast('主机/IP 必填。', true); return; }
+      if (!(port >= 1 && port <= 65535)) { showToast('端口须为 1–65535。', true); return; }
+      var quota = null;
+      if (quotaRaw !== '') {
+        quota = Number(quotaRaw);
+        if (!(quota >= 1 && quota <= 1000000)) { showToast('每月流量额度须为 1–1000000 GB。', true); return; }
+      }
+      var addBody = { name: name, host: host, port: port };
+      if (quota !== null) addBody.quota_gb = quota;
+      fetch('/api/servers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addBody) })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d && res.d.error) || '添加失败');
+          return loadServers().then(function () {
+            renderServersMenu();
+            if (res.d.warning) showToast('已保存，但 ' + res.d.warning, true);
+            else showToast('服务器已添加。');
+          });
+        })
+        .catch(function (e) { showToast('添加失败：' + e.message, true); });
+    },
+    { inputs: [
+      { label: '名字', type: 'text', placeholder: '比如 Debian-3' },
+      { label: '主机 / IP', type: 'text', placeholder: 'IP 或域名' },
+      { label: '端口', type: 'number', placeholder: '22' },
+      { label: '每月额度（GB）', type: 'number', placeholder: '比如 2000' },
+    ] }
+  );
+}
+/* 二级：单个 VPS 设置（专用弹窗：名字、每月额度、端口跳跃；远程可删） */
+var srvModal = document.getElementById('srv-modal');
+var srvModalCard = document.getElementById('srv-modal-card');
+var srvSrcBtn = null;
+var srvCurrentId = null;
+function showSrvModal(id, btn) {
+  var s = serverById(id);
+  if (!s) return;
+  srvCurrentId = id;
+  srvSrcBtn = btn;
+  document.getElementById('srv-modal-title').textContent = s.name + ' 设置';
+  document.getElementById('srv-name').value = s.name;
+  document.getElementById('srv-quota').value = (s.quota_gb == null ? '' : s.quota_gb);
+  document.getElementById('srv-hop').value = HOP_BY_ID[id] || '';
+  document.getElementById('srv-hop-status').textContent = HOP_BY_ID[id] ? ('已开启：' + HOP_BY_ID[id]) : '未开启';
+  document.getElementById('srv-info').textContent = (s.type === 'local' ? '本地' : '远程') + (s.host ? ' · ' + s.host + (s.port ? ':' + s.port : '') : '');
+  document.getElementById('srv-del-btn').style.display = (s.type === 'local' ? 'none' : '');
+  modalShow(srvModal, srvModalCard, btn);
+  loadAlerts(); // 后台刷新一次 hop_range（/api/alerts 是权威来源）
+}
+function hideSrvModal() {
+  modalHide(srvModal, srvModalCard, srvSrcBtn);
+  srvSrcBtn = null;
+  srvCurrentId = null;
+}
+srvModal.addEventListener('click', function (e) { if (e.target === srvModal) hideSrvModal(); });
+document.getElementById('srv-cancel-btn').addEventListener('click', hideSrvModal);
+document.getElementById('srv-del-btn').addEventListener('click', function () { delServer(srvCurrentId, this); });
+document.getElementById('srv-ok-btn').addEventListener('click', function () { saveSrvModal(this); });
+function saveSrvModal(btn) {
+  var id = srvCurrentId;
+  if (!id) return;
+  var name = (document.getElementById('srv-name').value || '').trim();
   if (!name || name.length > 32) { showToast('名字须为 1–32 个字符。', true); return; }
-  var quotaRaw = quotaInput ? (quotaInput.value || '').trim() : '';
+  var quotaRaw = (document.getElementById('srv-quota').value || '').trim();
   var body = { name: name };
   if (quotaRaw !== '') {
     var q = Number(quotaRaw);
@@ -2162,36 +2230,29 @@ function saveServerRow(id, btn) {
   } else {
     body.quota_gb = null;
   }
+  var hop = (document.getElementById('srv-hop').value || '').trim();
+  if (hop !== '' && !/^\d+-\d+$/.test(hop)) { showToast('跳跃区间须为 起-止，例如 20000-40000，留空表示关闭。', true); return; }
+  btn.disabled = true;
   fetch('/api/servers/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      return fetch('/api/servers/' + encodeURIComponent(id) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop_range: hop }) })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+    })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      HOP_BY_ID[id] = res.d.hop_range || '';
       return loadServers().then(function () {
-        renderServersList();
+        renderServersMenu();
         loadAlerts();
         if (currentView === 'remote:' + id) {
           var s = serverById(id);
           if (s) document.getElementById('remote-title').textContent = s.name;
         }
-        showToast('已保存。');
+        hideSrvModal();
+        showToast('已保存。' + (HOP_BY_ID[id] ? '端口跳跃已开启：' + HOP_BY_ID[id] + '，记得在云厂商防火墙放行该区间 UDP。' : ''));
       });
-    })
-    .catch(function (e) { showToast('保存失败：' + e.message, true); });
-}
-function saveHop(id, btn) {
-  var row = btn.closest('.srv-row');
-  var input = row ? row.querySelector('.srv-hop-input') : null;
-  var hop = input ? (input.value || '').trim() : '';
-  if (hop !== '' && !/^\d+-\d+$/.test(hop)) { showToast('跳跃区间须为 起-止，例如 20000-40000，留空表示关闭。', true); return; }
-  btn.disabled = true;
-  fetch('/api/servers/' + encodeURIComponent(id) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop_range: hop }) })
-    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-    .then(function (res) {
-      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
-      HOP_BY_ID[id] = res.d.hop_range || '';
-      renderServersList();
-      loadAlerts();
-      showToast(HOP_BY_ID[id] ? ('端口跳跃已开启：' + HOP_BY_ID[id] + '，记得在云厂商防火墙放行该区间 UDP。') : '端口跳跃已关闭。');
     })
     .catch(function (e) { showToast('保存失败：' + e.message, true); })
     .finally(function () { btn.disabled = false; });
@@ -2209,7 +2270,8 @@ function delServer(id, btn) {
           if (!res.ok) throw new Error((res.d && res.d.error) || '删除失败');
           var wasViewing = currentView === serverViewKey(s);
           return loadServers().then(function () {
-            renderServersList();
+            renderServersMenu();
+            hideSrvModal();
             if (wasViewing) {
               var first = sortServers(SERVERS)[0];
               switchView(first ? serverViewKey(first) : 'd2');
@@ -2221,40 +2283,35 @@ function delServer(id, btn) {
     }
   );
 }
-function addServer(btn) {
-  var name = document.getElementById('srv-add-name').value.trim();
-  var host = document.getElementById('srv-add-host').value.trim();
-  var portRaw = document.getElementById('srv-add-port').value.trim();
-  var port = portRaw === '' ? 22 : Number(portRaw);
-  var quotaRaw = document.getElementById('srv-add-quota').value.trim();
-  var quota = null;
-  if (quotaRaw !== '') {
-    quota = Number(quotaRaw);
-    if (!(quota >= 1 && quota <= 1000000)) { showToast('每月流量额度须为 1–1000000 GB。', true); return; }
-  }
-  if (!name) { showToast('名字必填。', true); return; }
-  if (!host) { showToast('主机/IP 必填。', true); return; }
-  if (!(port >= 1 && port <= 65535)) { showToast('端口须为 1–65535。', true); return; }
-  btn.disabled = true;
-  var addBody = { name: name, host: host, port: port };
-  if (quota !== null) addBody.quota_gb = quota;
-  fetch('/api/servers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addBody) })
-    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-    .then(function (res) {
-      if (!res.ok) throw new Error((res.d && res.d.error) || '添加失败');
-      document.getElementById('srv-add-name').value = '';
-      document.getElementById('srv-add-host').value = '';
-      document.getElementById('srv-add-port').value = '';
-      document.getElementById('srv-add-quota').value = '';
-      return loadServers().then(function () {
-        renderServersList();
-        if (res.d.warning) showToast('已保存，但 ' + res.d.warning, true);
-        else showToast('服务器已添加。');
-      });
-    })
-    .catch(function (e) { showToast('添加失败：' + e.message, true); })
-    .finally(function () { btn.disabled = false; });
+/* 二级：流量预警设置（专用弹窗；字段与接口与原来一致） */
+var alertsModal = document.getElementById('alerts-modal');
+var alertsModalCard = document.getElementById('alerts-modal-card');
+var alertsSrcBtn = null;
+function showAlertsModal(btn) {
+  alertsSrcBtn = btn;
+  loadAlerts();
+  modalShow(alertsModal, alertsModalCard, btn);
 }
+function hideAlertsModal() {
+  modalHide(alertsModal, alertsModalCard, alertsSrcBtn);
+  alertsSrcBtn = null;
+}
+alertsModal.addEventListener('click', function (e) { if (e.target === alertsModal) hideAlertsModal(); });
+document.getElementById('alerts-cancel-btn').addEventListener('click', hideAlertsModal);
+/* 二级：运行日志（专用弹窗；控件与接口与原来一致） */
+var logsModal = document.getElementById('logs-modal');
+var logsModalCard = document.getElementById('logs-modal-card');
+var logsSrcBtn = null;
+function showLogsModal(btn) {
+  logsSrcBtn = btn;
+  modalShow(logsModal, logsModalCard, btn);
+}
+function hideLogsModal() {
+  modalHide(logsModal, logsModalCard, logsSrcBtn);
+  logsSrcBtn = null;
+}
+logsModal.addEventListener('click', function (e) { if (e.target === logsModal) hideLogsModal(); });
+document.getElementById('logs-cancel-btn').addEventListener('click', hideLogsModal);
 
 /* ---- monthly traffic alerts (GET/POST /api/alerts) ---- */
 function loadAlerts() {
@@ -2272,7 +2329,15 @@ function loadAlerts() {
       var html = d.telegram_configured ? 'Telegram 已配置' : 'Telegram 未配置（填好 Token 与 Chat ID 后才能发提醒）';
       HOP_BY_ID = {};
       (d.servers || []).forEach(function (s) { HOP_BY_ID[s.id] = s.hop_range || ''; });
-      applyHopRanges();
+      // 单个 VPS 设置弹窗正开着时，把刚取到的跳跃区间回填进去（用户没在输时）。
+      if (srvCurrentId) {
+        var hopInp = document.getElementById('srv-hop');
+        if (hopInp && document.activeElement !== hopInp) {
+          var hop = HOP_BY_ID[srvCurrentId] || '';
+          hopInp.value = hop;
+          document.getElementById('srv-hop-status').textContent = hop ? ('已开启：' + hop) : '未开启';
+        }
+      }
       sortServers(d.servers || []).forEach(function (s) {
         var pct = (s.pct == null) ? '—' : s.pct.toFixed(1) + '%';
         var used = (s.used_gb == null) ? '—' : s.used_gb.toFixed(2) + ' GB';
@@ -3417,9 +3482,9 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
-      var html = '<table class="utable"><tr><th>用户</th><th>密码</th><th>VLESS</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期 / IP</th><th>操作</th></tr>';
+      var html = '<table class="utable"><tr><th>用户</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期 / IP</th><th>操作</th></tr>';
       if (admin) {
-        html += '<tr><td data-label="用户">admin</td><td data-label="密码">—</td><td data-label="VLESS">—</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td><td data-label="到期 / IP">—</td>'
+        html += '<tr><td data-label="用户">admin</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td><td data-label="到期 / IP">—</td>'
           + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
       }
       users.forEach(function(x){
@@ -3436,9 +3501,6 @@ function loadUsers() {
         var dis = x.disabled || {};
         var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
         var pw = pending ? '未设置' : esc(x.hy2_password || '—');
-        var vless = (x.vless_uuid && x.vless_port)
-          ? '<div class="vless-row"><span class="vless-uuid">' + esc(x.vless_uuid.slice(0, 8)) + '…</span><button class="small ghost vless-copy" data-uuid="' + esc(x.vless_uuid) + '" onclick="copyStr(this.dataset.uuid, this)">复制</button></div><div class="vless-port">端口 ' + x.vless_port + '</div>'
-          : '—';
         var status;
         if (pending) status = '待设置密码';
         else if (!x.enabled) status = x.disabled_reason === 'over_limit' ? '已超限停用' : (x.disabled_reason === 'rotated' ? '轮换后停用' : '已停用');
@@ -3450,9 +3512,9 @@ function loadUsers() {
         else if (overLocal) status = 'D2 已超限';
         else status = '正常';
         var cls = (pending || !x.enabled || dis.d1 || dis.local || overD1 || overLocal) ? 'bad' : '';
-        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="密码" style="font-family:monospace; word-break:break-all;">' + pw + '</td><td data-label="VLESS">' + vless + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td><td data-label="到期 / IP">' + expiryIpCell(x) + '</td>'
+        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td><td data-label="到期 / IP">' + expiryIpCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', this)">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this)">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3645,10 +3707,10 @@ function setIpLimit(username, curLimit, btn) {
   );
 }
 
-function resetPw(username, btn, allowPwChange) {
+function resetPw(username, btn, allowPwChange, curPw) {
   showConfirm(
     '给 ' + username + ' 设置新密码',
-    '新密码至少 6 位；同时也是他的 HY2 新密码，旧链接立刻失效。',
+    '当前密码：' + (curPw || '未设置') + '\n新密码至少 6 位；同时也是他的 HY2 新密码，旧链接立刻失效。',
     btn,
     function(v){
       if (!v) return;
