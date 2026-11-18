@@ -163,11 +163,19 @@ def main():
         conn.commit()
     except Exception:
         pass
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
+    for col, ddl in [
+        ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
+        ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
+    ]:
+        if col not in cols:
+            conn.execute(ddl)
+    conn.commit()
     users = {
         r["username"]: dict(r)
         for r in conn.execute(
             "SELECT username, limit_gb, limits_json, disabled_json, enabled,"
-            " disabled_reason FROM users"
+            " disabled_reason, expires_at FROM users"
         )
     }
     servers = {}
@@ -247,6 +255,29 @@ def main():
     # their nodes on that server only (disabled_json[server]='over_limit').
     # Legacy global over_limit (enabled=0) is migrated to the per-server
     # model on the first run after the upgrade.
+    # Expiry enforcement (global, not per-server): an expired account loses
+    # its nodes on every server. It is NOT auto-restored (unlike the monthly
+    # over-limit, which clears on the 1st); the admin re-enables it, which
+    # clears the expiry.
+    import time as _time
+    now_ts = int(_time.time())
+    for username, u in users.items():
+        if username == "admin":
+            continue
+        try:
+            exp = int(u["expires_at"]) if u.get("expires_at") is not None else None
+        except (TypeError, ValueError):
+            exp = None
+        if exp is not None and exp < now_ts and u["enabled"]:
+            conn.execute(
+                "UPDATE users SET enabled=0, disabled_reason='expired' WHERE username=?",
+                (username,),
+            )
+            log("DISABLE %s: account expired" % username)
+            changed = True
+            u["enabled"] = 0
+            u["disabled_reason"] = "expired"
+    conn.commit()
     server_ids = sorted(set(list(servers.keys()) + ["local"]))
     for username, u in users.items():
         if username == "admin":
