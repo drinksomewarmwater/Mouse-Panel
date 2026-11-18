@@ -649,6 +649,7 @@
       <li>用户列表：操作列收窄（两按钮改纵向排布），密码列与 VLESS 列取消显示；密码改在“修改权限 → 修改密码”弹窗里显示当前密码</li>
       <li>用户列表列调整：用户列改名“用户名”，新增“权限”列（管理员/用户），状态列只分正常/停用/故障；到期时间与 IP 拆成两列，管理员到期显示永久，IP 列（含管理员）沿用公用用户的格式；管理员的每月上限与本月已用也按 D1/D2 两行显示</li>
       <li>打开面板默认显示第一台 VPS 的详情（本地服务器排第一），不再恢复上次看的标签页</li>
+      <li>歌词设置新增透明度调节（10–100%，默认 88%），只改悬浮歌词面板的背景深浅，歌词文字不受影响</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -666,7 +667,10 @@
     <div class="field">
       <div><label>识别源</label><select id="lyr-set-source" class="lyr-select"><option value="online">在线识别</option><option value="local">仅本地（只读文件内嵌）</option></select></div>
     </div>
-    <div class="meta" style="margin-bottom:12px;">歌词优先读文件内嵌；文件里没有时按识别源检索。切源后会重新识别当前歌曲。</div>
+    <div class="field">
+      <div><label>透明度（<span id="lyr-set-opacity-val">88%</span>）</label><input type="range" id="lyr-set-opacity" min="10" max="100" step="1" value="88" style="width:100%;accent-color:#1d9bf0;"></div>
+    </div>
+    <div class="meta" style="margin-bottom:12px;">歌词优先读文件内嵌；文件里没有时按识别源检索。切源后会重新识别当前歌曲。透明度只改悬浮歌词面板的背景深浅，歌词文字不受影响。</div>
     <div class="confirm-modal-btns">
       <button class="ghost" id="lyr-set-refetch">重新识别当前歌曲</button>
       <button id="lyr-set-close">关闭</button>
@@ -1050,6 +1054,14 @@ try { lyricsEnabled = localStorage.getItem('bgm-lyrics-enabled') !== '0'; } catc
 var lyricsSource = 'online';
 try { lyricsSource = localStorage.getItem('bgm-lyrics-source') || 'online'; } catch (e) {}
 if (['online', 'local'].indexOf(lyricsSource) < 0) lyricsSource = 'online';
+/* 悬浮歌词面板背景不透明度（10–100，默认 88，对应原来写死的 rgba 0.88）。
+   只改面板背景深浅，歌词文字不受影响；存在 localStorage。 */
+var lyricsOpacity = 88;
+try { var _lo = parseInt(localStorage.getItem('bgm-lyrics-opacity'), 10); if (!isNaN(_lo) && _lo >= 10 && _lo <= 100) lyricsOpacity = _lo; } catch (e) {}
+function applyLyricsOpacity() {
+  var f = document.getElementById('lyrics-float');
+  if (f) f.style.background = 'rgba(26, 34, 48, ' + (lyricsOpacity / 100) + ')';
+}
 var curLyricsReq = 0;
 var lyricLines = [];
 var lyricSynced = false;
@@ -1256,6 +1268,7 @@ function syncLyricsLine() {
 function applyLyricsVisibility() {
   var el = document.getElementById('lyrics-float');
   if (!el) return;
+  applyLyricsOpacity();
   var appVisible = true;
   var app = document.getElementById('app-view');
   if (app) appVisible = !app.classList.contains('hidden');
@@ -1318,6 +1331,10 @@ function showLyricsSettings(btn) {
   if (en) en.checked = lyricsEnabled;
   var src = document.getElementById('lyr-set-source');
   if (src) src.value = lyricsSource;
+  var op = document.getElementById('lyr-set-opacity');
+  if (op) op.value = lyricsOpacity;
+  var opVal = document.getElementById('lyr-set-opacity-val');
+  if (opVal) opVal.textContent = lyricsOpacity + '%';
   modalShow(lyricsModal, lyricsModalCard, btn);
 }
 function hideLyricsSettings() { modalHide(lyricsModal, lyricsModalCard, null); }
@@ -1337,6 +1354,17 @@ if (lyrSrc) lyrSrc.addEventListener('change', function (e) {
   lyricsSource = v;
   lsSet('bgm-lyrics-source', v);
   bgmRefreshCoverLyrics(true);
+});
+var lyrOp = document.getElementById('lyr-set-opacity');
+if (lyrOp) lyrOp.addEventListener('input', function (e) {
+  var v = parseInt(e.target.value, 10);
+  if (isNaN(v)) v = 88;
+  v = Math.max(10, Math.min(100, v));
+  lyricsOpacity = v;
+  lsSet('bgm-lyrics-opacity', String(v));
+  var opVal = document.getElementById('lyr-set-opacity-val');
+  if (opVal) opVal.textContent = v + '%';
+  applyLyricsOpacity();
 });
 var lyrRefetch = document.getElementById('lyr-set-refetch');
 if (lyrRefetch) lyrRefetch.addEventListener('click', function () {
