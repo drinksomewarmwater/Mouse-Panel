@@ -195,7 +195,7 @@
   #lyrics-float .lyr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #lyrics-float .lyr-close { background: transparent; border: none; color: #8b98a5; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
   #lyrics-float .lyr-close:hover { color: #fff; }
-  #lyrics-lines { overflow: hidden; scrollbar-width: none; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .35s cubic-bezier(0.4, 0, 0.2, 1); }
+  #lyrics-lines { overflow-y: auto; scrollbar-width: none; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .35s cubic-bezier(0.4, 0, 0.2, 1); }
   #lyrics-lines::-webkit-scrollbar { display: none; }
   /* lyrics cover: grows + fades in with the panel (display can't animate,
      so it uses max-height + opacity like the lines, not display:none). */
@@ -663,6 +663,7 @@
       <li>歌词在线识别改模糊：lrclib 按歌名+歌手查不到时，再只按歌名查一次（文件名里的歌手常是频道名不是真歌手，带歌手查会返回空）；歌词缓存换新 key，旧的“暂无歌词”会重新识别</li>
       <li>上传加进度条：上传时列表里显示“上传中”行，带进度条和百分比，传完变正式曲目，失败显示“上传失败”5 秒；上传改用 XMLHttpRequest 以拿到真实上传进度</li>
       <li>多文件同时上传：一次选多个文件时全部并行上传，列表里每个文件各有一条自己的进度条；每首传完立刻出现在列表里，不用等整批传完</li>
+      <li>歌词鼠标滚动加回来了：悬浮歌词可用鼠标滚轮手动滚动，仍不显示滚动条；手动滚后 8 秒内自动居中暂停，方便读词，8 秒没动恢复跟随</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -1110,6 +1111,7 @@ var curLyricsReq = 0;
 var lyricLines = [];
 var lyricSynced = false;
 var lyricActiveIdx = -1;
+var lyrUserScrollAt = 0;
 function normStr(s) {
   return String(s || '').toLowerCase().replace(/[\s\p{P}]/gu, '');
 }
@@ -1304,6 +1306,9 @@ function centerActiveLyric(instant) {
   if (!box) return;
   var cur = box.querySelector('.lyr-line.active');
   if (!cur) return;
+  /* If the user just scrolled manually, don't yank the view back for a
+     few seconds — let them read. Auto-centering resumes after 8s idle. */
+  if (!instant && lyrUserScrollAt && Date.now() - lyrUserScrollAt < 8000) return;
   /* instant for expand/collapse re-centering (a smooth scroll would delay
      the height transition); smooth only for the line change during playback */
   cur.scrollIntoView({ block: 'center', behavior: instant ? 'auto' : 'smooth' });
@@ -1534,6 +1539,9 @@ if (lyrFloat) {
       if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
     }
   });
+  /* Manual mouse-wheel scrolling: record the time so the auto-centering
+     doesn't yank the view back while the user is reading. */
+  if (lyrLines) lyrLines.addEventListener('wheel', function () { lyrUserScrollAt = Date.now(); }, { passive: true });
   window.addEventListener('resize', function () {
     if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
   });
