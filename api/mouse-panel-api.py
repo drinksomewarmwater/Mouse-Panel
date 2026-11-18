@@ -61,6 +61,7 @@ LOCK = threading.Lock()
 # --- panel config / music playlist / server list (added 2026-11-14) ---
 CONFIG_PATH = "/var/lib/mouse-panel/config.json"
 PLAYLIST_PATH = "/var/lib/mouse-panel/playlist.json"
+PLAYLISTS_DIR = "/var/lib/mouse-panel/playlists"
 SERVERS_PATH = "/var/lib/mouse-panel/servers.json"
 
 # --- runtime log (added 2026-11-16) ---
@@ -143,11 +144,65 @@ def telegram_prefix():
     return "【%s】" % load_config()["panel_name"]
 
 
-def load_playlist():
-    pl = load_json(PLAYLIST_PATH, None)
+def load_playlist(username=None):
+    """Per-user playlist. Admin and each regular user have their own list
+    (playlists/<username>.json) and their own music directory
+    (music/<username>/), so one user's uploads/deletes never touch another's.
+    username=None keeps the legacy shared playlist (admin migration source)."""
+    if username is None:
+        pl = load_json(PLAYLIST_PATH, None)
+    else:
+        migrate_music_to_per_user()
+        pl = load_json(playlist_path_for(username), None)
     if not isinstance(pl, list):
         return [dict(t) for t in DEFAULT_PLAYLIST]
     return pl
+
+
+def playlist_path_for(username):
+    """Per-user playlist file. Usernames are already restricted to
+    [A-Za-z0-9_-] + CJK, so no path traversal is possible."""
+    return os.path.join(PLAYLISTS_DIR, "%s.json" % username)
+
+
+def music_dir_for(username):
+    """Per-user music directory (files served under /music/<username>/)."""
+    return os.path.join(MUSIC_DIR, username)
+
+
+def save_playlist_for(username, pl):
+    os.makedirs(PLAYLISTS_DIR, exist_ok=True)
+    save_json(playlist_path_for(username), pl)
+
+
+def migrate_music_to_per_user():
+    """One-time migration from the old shared playlist to per-user lists.
+    The old shared playlist + files belonged to the admin only (regular
+    users could not upload before), so they become the admin's list:
+    playlist.json -> playlists/admin.json, music/*.ext -> music/admin/.
+    Idempotent; the legacy file is kept as playlist.json.bak-migrated."""
+    admin_pl = os.path.join(PLAYLISTS_DIR, "admin.json")
+    if os.path.exists(admin_pl):
+        return
+    if not os.path.exists(PLAYLIST_PATH):
+        return
+    try:
+        os.makedirs(PLAYLISTS_DIR, exist_ok=True)
+        os.makedirs(music_dir_for("admin"), exist_ok=True)
+        legacy = load_json(PLAYLIST_PATH, None)
+        if isinstance(legacy, list):
+            save_json(admin_pl, legacy)
+            for t in legacy:
+                fname = os.path.basename(t.get("file", ""))
+                if not fname:
+                    continue
+                src = os.path.join(MUSIC_DIR, fname)
+                dst = os.path.join(music_dir_for("admin"), fname)
+                if os.path.isfile(src) and not os.path.exists(dst):
+                    os.rename(src, dst)
+        os.rename(PLAYLIST_PATH, PLAYLIST_PATH + ".bak-migrated")
+    except OSError:
+        pass
 
 
 def load_servers():
@@ -310,11 +365,12 @@ def sanitize_music_filename(name):
     return name or "music"
 
 
-def unique_music_filename(name):
+def unique_music_filename(name, directory=None):
     base, ext = os.path.splitext(name)
     cand = name
     i = 1
-    while os.path.exists(os.path.join(MUSIC_DIR, cand)):
+    d = directory or MUSIC_DIR
+    while os.path.exists(os.path.join(d, cand)):
         cand = "%s (%d)%s" % (base, i, ext)
         i += 1
     return cand
@@ -1543,9 +1599,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(500, {"error": str(e)})
             return
         if p == "/api/music":
-            # Playlist only names files that Caddy already serves publicly.
+            # Per-user playlist: each logged-in user only sees their own list.
+            me = self._me()
+            if not me:
+                self._json(401, {"error": "not logged in"})
+                return
             try:
-                self._json(200, {"tracks": load_playlist()})
+                self._json(200, {"tracks": load_playlist(me["username"])})
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
@@ -1962,8 +2022,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"ok": False, "error": "发送失败：" + err})
             return
         if p == "/api/music/upload":
-            if not self._require(admin_only=True):
+            # Any logged-in user may upload to their OWN playlist.
+            me = self._me()
+            if not me:
+                self._json(401, {"error": "not logged in"})
                 return
+            username = me["username"]
             parts, err = self._read_multipart()
             if err:
                 self._json(400, {"error": err})
@@ -1989,12 +2053,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "只支持 mp3 / flac / ogg / wav / m4a"})
                 return
             try:
-                os.makedirs(MUSIC_DIR, exist_ok=True)
-                fname = unique_music_filename(fname)
-                with open(os.path.join(MUSIC_DIR, fname), "wb") as f:
+                udir = music_dir_for(username)
+                os.makedirs(udir, exist_ok=True)
+                fname = unique_music_filename(fname, udir)
+                with open(os.path.join(udir, fname), "wb") as f:
                     f.write(data)
                 with LOCK:
-                    pl = load_playlist()
+                    pl = load_playlist(username)
                     track = {
                         "id": secrets.token_hex(6),
                         "name": os.path.splitext(fname)[0],
@@ -2002,14 +2067,18 @@ class Handler(BaseHTTPRequestHandler):
                         "file": fname,
                     }
                     pl.append(track)
-                    save_json(PLAYLIST_PATH, pl)
+                    save_playlist_for(username, pl)
                 self._json(200, {"ok": True, "track": track})
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
         if p == "/api/music/delete":
-            if not self._require(admin_only=True):
+            # Any logged-in user may delete from their OWN playlist.
+            me = self._me()
+            if not me:
+                self._json(401, {"error": "not logged in"})
                 return
+            username = me["username"]
             body = self._read_json()
             ids = body.get("ids") or []
             if not isinstance(ids, list) or not ids:
@@ -2017,28 +2086,32 @@ class Handler(BaseHTTPRequestHandler):
                 return
             with LOCK:
                 try:
-                    pl = load_playlist()
+                    pl = load_playlist(username)
                     keep = []
                     deleted = 0
                     for t in pl:
                         if t.get("id") in ids:
                             # basename() so a crafted file value can never
-                            # escape the music directory.
+                            # escape the user's own music directory.
                             try:
-                                os.remove(os.path.join(MUSIC_DIR, os.path.basename(t.get("file", ""))))
+                                os.remove(os.path.join(music_dir_for(username), os.path.basename(t.get("file", ""))))
                             except OSError:
                                 pass
                             deleted += 1
                         else:
                             keep.append(t)
-                    save_json(PLAYLIST_PATH, keep)
+                    save_playlist_for(username, keep)
                     self._json(200, {"ok": True, "deleted": deleted})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
         if p == "/api/music/order":
-            if not self._require(admin_only=True):
+            # Any logged-in user may reorder their OWN playlist.
+            me = self._me()
+            if not me:
+                self._json(401, {"error": "not logged in"})
                 return
+            username = me["username"]
             body = self._read_json()
             ids = body.get("ids") or []
             if not isinstance(ids, list) or not ids:
@@ -2046,12 +2119,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             with LOCK:
                 try:
-                    pl = load_playlist()
+                    pl = load_playlist(username)
                     by_id = {t.get("id"): t for t in pl}
                     if set(ids) != set(by_id.keys()):
                         self._json(400, {"error": "曲目列表不一致，请刷新重试"})
                         return
-                    save_json(PLAYLIST_PATH, [by_id[i] for i in ids])
+                    save_playlist_for(username, [by_id[i] for i in ids])
                     self._json(200, {"ok": True})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
