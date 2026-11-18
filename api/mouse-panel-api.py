@@ -247,9 +247,10 @@ def server_traffic_status():
         data = {}
     for s in load_servers():
         entry = {"id": s.get("id"), "name": s.get("name"), "quota_gb": None,
-                 "used_gb": None, "pct": None, "month": None}
+                 "used_gb": None, "pct": None, "month": None, "hop_range": ""}
         try:
             if s.get("type") == "local":
+                entry["hop_range"] = local_hop_range()
                 t = (data.get("traffic") or {})
                 total = (t.get("rx") or 0) + (t.get("tx") or 0)
                 entry["used_gb"] = total / 1e9
@@ -262,6 +263,7 @@ def server_traffic_status():
                     entry["quota_gb"] = None
             else:
                 d = remote_read(s)
+                entry["hop_range"] = d.get("hop_range", "")
                 t = d.get("traffic") or {}
                 total = (t.get("rx") or 0) + (t.get("tx") or 0)
                 entry["used_gb"] = total / 1e9
@@ -452,6 +454,8 @@ def ensure_user_columns():
         ("limits_json", "ALTER TABLE users ADD COLUMN limits_json TEXT"),
         ("disabled_json", "ALTER TABLE users ADD COLUMN disabled_json TEXT"),
         ("allow_pw_change", "ALTER TABLE users ADD COLUMN allow_pw_change INTEGER NOT NULL DEFAULT 1"),
+        ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
+        ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
     ]:
         if col not in cols:
             conn.execute(ddl)
@@ -478,6 +482,97 @@ def parse_limits(row):
             out[sid] = float(v) if v is not None else None
         except (TypeError, ValueError):
             out[sid] = None
+    return out
+
+
+def parse_expires_at(row):
+    """Account expiry as a Unix timestamp, or None = permanent."""
+    v = row.get("expires_at")
+    try:
+        return int(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_ip_limit(row):
+    """Concurrent-online-IP limit; 0 = unlimited."""
+    try:
+        return max(0, int(row.get("ip_limit") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_expires_body(body):
+    """Expiry from a request body: a YYYY-MM-DD date, a Unix timestamp, or
+    null/empty = permanent. Returns an int timestamp or None. Raises ValueError."""
+    v = body.get("expires_at")
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)):
+        ts = int(v)
+    else:
+        v = str(v).strip()
+        if not v:
+            return None
+        try:
+            ts = int(v)
+        except ValueError:
+            from datetime import datetime, timezone
+            dt = datetime.strptime(v, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            ts = int(dt.timestamp())
+    if ts < 0:
+        raise ValueError("到期时间无效")
+    return ts
+
+
+# Auth-server online-IP tracker: {username: {ip: last_seen_ts}}.
+# Written by hy2-auth.py on each /auth call; entries older than
+# HY2_ONLINE_TIMEOUT are stale. Local file + the D1 agent's hy2-online.
+HY2_ONLINE_PATH = "/var/lib/mouse-panel/hy2-online.json"
+HY2_ONLINE_TIMEOUT = 600
+
+
+def read_online_ips():
+    """{username: [ip, ...]} currently online, local server + D1 (best effort).
+    An IP counts if the auth server saw it within HY2_ONLINE_TIMEOUT."""
+    import time as _time
+    now = int(_time.time())
+    out = {}
+
+    def _collect(path_or_text, server):
+        try:
+            data = json.loads(path_or_text) if isinstance(path_or_text, str) else path_or_text
+        except Exception:
+            return
+        if not isinstance(data, dict):
+            return
+        for username, ips in data.items():
+            if not isinstance(ips, dict):
+                continue
+            for ip, seen in ips.items():
+                try:
+                    if now - int(seen) < HY2_ONLINE_TIMEOUT:
+                        out.setdefault(username, []).append({"server": server, "ip": str(ip)})
+                except (TypeError, ValueError):
+                    continue
+
+    try:
+        with open(HY2_ONLINE_PATH) as f:
+            _collect(f.read(), "local")
+    except OSError:
+        pass
+    # Remote servers' trackers via the panel key + remote agent
+    # (best effort, never fatal).
+    for sv in load_servers():
+        if sv.get("type") != "remote":
+            continue
+        try:
+            rc, out_txt, _err = remote_ssh(
+                sv, "python3 %s hy2-online" % AGENT_SCRIPT, timeout=10)
+            if rc == 0 and out_txt.strip():
+                _collect(out_txt.strip(), sv.get("id") or "remote")
+        except Exception:
+            pass
     return out
 
 
@@ -596,15 +691,19 @@ def list_users():
     rows = conn.execute(
         "SELECT id, username, role, limit_gb, limits_json, disabled_json, enabled,"
         " disabled_reason, created_at, hy2_password, pw_set, vless_uuid, vless_port,"
-        " allow_pw_change"
+        " allow_pw_change, expires_at, ip_limit"
         " FROM users ORDER BY role DESC, username"
     ).fetchall()
     conn.close()
+    online = read_online_ips()
     out = []
     for r in rows:
         d = dict(r)
         d["limits"] = parse_limits(d)
         d["disabled"] = parse_disabled(d)
+        d["expires_at"] = parse_expires_at(d)
+        d["ip_limit"] = parse_ip_limit(d)
+        d["online_ips"] = online.get(d["username"], [])
         out.append(d)
     return out
 
@@ -737,9 +836,62 @@ def admin_local_hy2_link():
 def local_hy2_link(username, pw):
     node = load_node()
     domain = node["domain"]
-    return ("hysteria2://%s:%s@%s:%d?sni=%s#【推荐】Hy2"
+    q = "sni=%s" % domain
+    hop = local_hop_range()
+    if hop:
+        q += "&mport=%s" % hop
+    return ("hysteria2://%s:%s@%s:%d?%s#【推荐】Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain,
-               node["hy2_port"], domain))
+               node["hy2_port"], q, domain))
+
+
+HYSTERIA_CFG = "/etc/hysteria/config.yaml"
+
+
+def local_hop_range():
+    """Port-hopping range from the local Hysteria listen line, or ''."""
+    try:
+        with open(HYSTERIA_CFG) as f:
+            text = f.read()
+    except OSError:
+        return ""
+    m = re.search(r"^listen:\s*:(\d+)-(\d+)\s*$", text, re.M)
+    return "%s-%s" % (m.group(1), m.group(2)) if m else ""
+
+
+def set_local_hop_range(hop_range):
+    """Set the local Hysteria listen line to a hop range or back to the
+    single node port. Restarts hysteria-server. Raises on failure
+    (config is rolled back). Returns the effective listen value."""
+    node = load_node()
+    if hop_range:
+        m = re.fullmatch(r"(\d+)-(\d+)", hop_range.strip())
+        if not m or not (1 <= int(m.group(1)) < int(m.group(2)) <= 65535):
+            raise ValueError("跳跃区间须为 起-止，例如 20000-40000")
+        if int(m.group(2)) - int(m.group(1)) < 99:
+            raise ValueError("跳跃区间至少跨 100 个端口")
+        listen = ":%s" % hop_range.strip()
+    else:
+        listen = ":%d" % node["hy2_port"]
+    with open(HYSTERIA_CFG) as f:
+        text = f.read()
+    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$", "listen: %s" % listen,
+                          text, count=1, flags=re.M)
+    if n != 1:
+        raise RuntimeError("hysteria 配置里找不到 listen 行")
+    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
+    try:
+        with open(HYSTERIA_CFG, "w") as f:
+            f.write(new_text)
+        run("systemctl restart hysteria-server")
+        time.sleep(2)
+        if run("systemctl is-active hysteria-server")[1] != "active":
+            raise RuntimeError("hysteria-server 重启后未恢复")
+    except Exception:
+        run("cp %s.bak-hop %s" % (HYSTERIA_CFG, HYSTERIA_CFG))
+        run("systemctl restart hysteria-server")
+        raise
+    return listen
 
 
 def remote_hy2_link(server, username, pw):
@@ -751,6 +903,8 @@ def remote_hy2_link(server, username, pw):
     if d.get("obfs_enabled") and d.get("obfs_password"):
         obfs = urllib.parse.quote(d["obfs_password"], safe="")
         q = "obfs=salamander&obfs-password=%s&sni=%s" % (obfs, domain)
+    if d.get("hop_range"):
+        q += "&mport=%s" % d["hop_range"]
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain, port, q, name))
 
@@ -1656,6 +1810,18 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError) as e:
                 self._json(400, {"error": str(e) or "月流量上限须为正数，或留空表示不限"})
                 return
+            try:
+                expires_at = parse_expires_body(body)
+            except ValueError as e:
+                self._json(400, {"error": str(e) or "到期时间无效"})
+                return
+            try:
+                ip_limit = int(body.get("ip_limit") or 0)
+                if ip_limit < 0 or ip_limit > 1000:
+                    raise ValueError
+            except (TypeError, ValueError):
+                self._json(400, {"error": "同时在线 IP 上限须为 0–1000 的整数，0 表示不限"})
+                return
             if get_user(username):
                 self._json(400, {"error": "用户名已存在"})
                 return
@@ -1676,10 +1842,13 @@ class Handler(BaseHTTPRequestHandler):
                     conn.execute(
                         "INSERT INTO users (username, pw_hash, hy2_password, limit_gb,"
                         " limits_json, vless_uuid, vless_port, role,"
-                        " enabled, disabled_reason, setup_token_hash, pw_set, created_at)"
-                        " VALUES (?, '', '', ?, ?, ?, ?, 'user', 0, 'pending_setup', ?, 0, ?)",
+                        " enabled, disabled_reason, setup_token_hash, pw_set, created_at,"
+                        " expires_at, ip_limit)"
+                        " VALUES (?, '', '', ?, ?, ?, ?, 'user', 0, 'pending_setup', ?, 0, ?,"
+                        " ?, ?)",
                         (username, limit_gb, json.dumps(limits),
-                         vless_uuid, vless_port, token_hash, now),
+                         vless_uuid, vless_port, token_hash, now,
+                         expires_at, ip_limit),
                     )
                     conn.commit()
                     conn.close()
@@ -1933,7 +2102,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
-        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable)", p)
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|ip-limit)", p)
         if m:
             if not self._require(admin_only=True):
                 return
@@ -1995,6 +2164,38 @@ class Handler(BaseHTTPRequestHandler):
                         conn.commit()
                         conn.close()
                         self._json(200, {"ok": True})
+                    elif action == "expiry":
+                        try:
+                            expires_at = parse_expires_body(body)
+                        except ValueError as e:
+                            self._json(400, {"error": str(e) or "到期时间无效"})
+                            conn.close()
+                            return
+                        conn.execute(
+                            "UPDATE users SET expires_at=? WHERE username=?",
+                            (expires_at, username),
+                        )
+                        conn.commit()
+                        conn.close()
+                        sync_hy2_users_bg()
+                        self._json(200, {"ok": True})
+                    elif action == "ip-limit":
+                        try:
+                            ip_limit = int(body.get("ip_limit") or 0)
+                            if ip_limit < 0 or ip_limit > 1000:
+                                raise ValueError
+                        except (TypeError, ValueError):
+                            self._json(400, {"error": "同时在线 IP 上限须为 0–1000 的整数，0 表示不限"})
+                            conn.close()
+                            return
+                        conn.execute(
+                            "UPDATE users SET ip_limit=? WHERE username=?",
+                            (ip_limit, username),
+                        )
+                        conn.commit()
+                        conn.close()
+                        sync_hy2_users_bg()
+                        self._json(200, {"ok": True})
                     elif action == "enable":
                         enabled = 1 if body.get("enabled") else 0
                         if enabled and not user.get("pw_set"):
@@ -2002,6 +2203,18 @@ class Handler(BaseHTTPRequestHandler):
                             conn.close()
                             return
                         reason = None if enabled else "manual"
+                        expiry_cleared = False
+                        if enabled:
+                            # Re-enabling an expired account clears the
+                            # expiry (permanent) so the poller does not
+                            # disable it again within 5 minutes.
+                            exp = parse_expires_at(user)
+                            if exp is not None and exp < int(time.time()):
+                                conn.execute(
+                                    "UPDATE users SET expires_at=NULL WHERE username=?",
+                                    (username,),
+                                )
+                                expiry_cleared = True
                         conn.execute(
                             "UPDATE users SET enabled=?, disabled_reason=? WHERE username=?",
                             (enabled, reason, username),
@@ -2010,7 +2223,52 @@ class Handler(BaseHTTPRequestHandler):
                         conn.close()
                         sync_hy2_users_bg()
                         sync_vless_users_bg()
-                        self._json(200, {"ok": True})
+                        self._json(200, {"ok": True, "expiry_cleared": expiry_cleared})
+                except Exception as e:
+                    self._json(500, {"ok": False, "error": str(e)})
+            return
+        m = re.fullmatch(r"/api/servers/([^/]+)/hop", p)
+        if m:
+            if not self._require(admin_only=True):
+                return
+            sid = unquote(m.group(1))
+            body = self._read_json()
+            hop_range = (body.get("hop_range") or "").strip()
+            if hop_range:
+                hm = re.fullmatch(r"(\d+)-(\d+)", hop_range)
+                if not hm or not (1 <= int(hm.group(1)) < int(hm.group(2)) <= 65535):
+                    self._json(400, {"error": "跳跃区间须为 起-止，例如 20000-40000"})
+                    return
+                if int(hm.group(2)) - int(hm.group(1)) < 99:
+                    self._json(400, {"error": "跳跃区间至少跨 100 个端口"})
+                    return
+            with LOCK:
+                try:
+                    if sid == "local":
+                        listen = set_local_hop_range(hop_range)
+                    else:
+                        server = remote_server(sid)
+                        if not server:
+                            self._json(404, {"error": "服务器不存在"})
+                            return
+                        rc, out, err = remote_ssh(
+                            server,
+                            "python3 %s hy2-hop %s" % (AGENT_SCRIPT, hop_range),
+                            timeout=60)
+                        if rc != 0:
+                            self._json(500, {"error": "远程设置失败：%s" % (err or out)})
+                            return
+                        try:
+                            d = json.loads(out.strip().splitlines()[-1])
+                        except Exception:
+                            self._json(500, {"error": "远程返回无法解析：%s" % out[-200:]})
+                            return
+                        if not d.get("ok"):
+                            self._json(500, {"error": d.get("error") or "远程设置失败"})
+                            return
+                        listen = d.get("listen", "")
+                    self._json(200, {"ok": True, "hop_range": hop_range,
+                                     "listen": listen})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
