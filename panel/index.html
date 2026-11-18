@@ -654,6 +654,7 @@
       <li>打开面板默认显示第一台 VPS 的详情（本地服务器排第一），不再恢复上次看的标签页</li>
       <li>歌词设置新增透明度调节（0–100%，越高越透明，默认 12%），只改悬浮歌词面板的背景深浅，歌词文字不受影响；滑杆轨道顶到两端，拉到 100% 不再留一截</li>
       <li>悬浮歌词去掉右侧滚动条，不可手动滚动（当前行仍自动居中滚动）</li>
+      <li>修改权限新增“端口跳跃”设置：可按用户开关 HY2 端口跳跃（链接带不带 mport），默认开启；只有服务器开了跳跃区间时才生效</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1816,8 +1817,8 @@ function permGo(fn) {
   var u = permUser;
   if (u) fn(u, btn);
 }
-function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, hy2Password, btn) {
-  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password };
+function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, hy2Password, btn, hop) {
+  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password, hop: hop };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
@@ -1828,6 +1829,7 @@ function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, a
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
     { label: 'IP限制', fn: function(u, b){ setIpLimit(u.username, u.ipLimit, b); } },
+    { label: '端口跳跃', fn: function(u, b){ setHop(u.username, u.hop, b); } },
   ];
   if (!pending) {
     items.push({ label: u.enabled ? '停用用户' : '启用用户', danger: true, fn: function(u, b){ toggleUser(u.username, !u.enabled, b); } });
@@ -3563,7 +3565,7 @@ function loadUsers() {
         var st = userStatus(x, overD1, overLocal, pending);
         html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="IP" class="nowrap">' + ipCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this)">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this, ' + (x.hop ? 'true' : 'false') + ')">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3753,6 +3755,29 @@ function setIpLimit(username, curLimit, btn) {
         .catch(function(e){ showToast('设置失败：' + e.message, true); });
     },
     { input: true, inputType: 'number', inputPlaceholder: '0–1000，0 表示不限', inputValue: String(curLimit || 0) }
+  );
+}
+
+function setHop(username, curHop, btn) {
+  showConfirm(
+    '设置 ' + username + ' 的端口跳跃',
+    '开启后，该用户的 HY2 链接会带上 mport 参数、走端口跳跃；关闭则只用单个节点端口。\n只有服务器开了跳跃区间时才生效（服务器设置里配）；开跳跃前须先在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。',
+    btn,
+    function(v){
+      if (v === undefined) return;
+      var hop = !!v[0];
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop: hop ? 1 : 0 }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+          loadUsers();
+          showToast(hop ? '端口跳跃已开启，链接已带 mport。' : '端口跳跃已关闭，链接改回单个端口。');
+        })
+        .catch(function(e){ showToast('设置失败：' + e.message, true); });
+    },
+    { inputs: [
+      { label: '开启端口跳跃', type: 'checkbox', value: curHop !== false }
+    ] }
   );
 }
 
