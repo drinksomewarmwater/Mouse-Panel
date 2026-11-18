@@ -662,6 +662,7 @@
       <li>修 HY2 超时：中文域名链接改用 punycode 形式（如 us.xn--yet590c35ai8a.de5.net），Hysteria 的 TLS 认不出中文 SNI、握手失败报 timeout，VLESS 不受影响</li>
       <li>歌词在线识别改模糊：lrclib 按歌名+歌手查不到时，再只按歌名查一次（文件名里的歌手常是频道名不是真歌手，带歌手查会返回空）；歌词缓存换新 key，旧的“暂无歌词”会重新识别</li>
       <li>上传加进度条：上传时列表里显示“上传中”行，带进度条和百分比，传完变正式曲目，失败显示“上传失败”5 秒；上传改用 XMLHttpRequest 以拿到真实上传进度</li>
+      <li>多文件同时上传：一次选多个文件时全部并行上传，列表里每个文件各有一条自己的进度条；每首传完立刻出现在列表里，不用等整批传完</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -2017,14 +2018,10 @@ function plUploadFiles(files) {
   var list = [];
   for (var i = 0; i < files.length; i++) list.push(files[i]);
   if (!list.length) return;
-  var total = list.length, done = 0, failed = 0;
-  function next() {
-    if (!list.length) {
-      loadPlaylist();
-      showToast(failed ? ('已上传 ' + done + ' 首，' + failed + ' 首失败。') : ('已上传 ' + done + ' 首。'), failed > 0);
-      return;
-    }
-    var f = list.shift();
+  var total = list.length, finished = 0, done = 0, failed = 0;
+  /* All files upload in parallel, each with its own progress row, so a
+     multi-file batch shows one progress bar per file at the same time. */
+  list.forEach(function (f) {
     var up = { name: f.name, pct: 0, failed: false };
     UPLOADS.push(up);
     renderPlaylist();
@@ -2040,6 +2037,30 @@ function plUploadFiles(files) {
       else up.pct = up.pct < 90 ? up.pct + 5 : 90;
       renderPlaylist();
     };
+    function finish(ok, track) {
+      var ix = UPLOADS.indexOf(up);
+      if (ix >= 0) UPLOADS.splice(ix, 1);
+      if (ok && track) {
+        done++;
+        /* Show the song in the list at once, the moment ITS upload
+           finishes — don't wait for the rest of the batch. */
+        if (!bgmTrackById(track.id)) PLAYLIST.push(track);
+      } else {
+        failed++;
+        up.failed = true;
+        UPLOADS.push(up);
+        setTimeout(function () {
+          var j = UPLOADS.indexOf(up);
+          if (j >= 0) { UPLOADS.splice(j, 1); renderPlaylist(); }
+        }, 5000);
+      }
+      renderPlaylist();
+      finished++;
+      if (finished === total) {
+        loadPlaylist();
+        showToast(failed ? ('已上传 ' + done + ' 首，' + failed + ' 首失败。') : ('已上传 ' + done + ' 首。'), failed > 0);
+      }
+    }
     xhr.onload = function () {
       var ok = false, track = null;
       try {
@@ -2047,37 +2068,11 @@ function plUploadFiles(files) {
         ok = xhr.status >= 200 && xhr.status < 300 && !!d.track;
         track = d.track || null;
       } catch (e) { ok = false; }
-      UPLOADS.splice(UPLOADS.indexOf(up), 1);
-      if (ok && track) {
-        done++;
-        if (!bgmTrackById(track.id)) PLAYLIST.push(track);
-      } else {
-        failed++;
-        up.failed = true;
-        UPLOADS.push(up);
-        setTimeout(function () {
-          var ix = UPLOADS.indexOf(up);
-          if (ix >= 0) { UPLOADS.splice(ix, 1); renderPlaylist(); }
-        }, 5000);
-      }
-      renderPlaylist();
-      next();
+      finish(ok, track);
     };
-    xhr.onerror = function () {
-      UPLOADS.splice(UPLOADS.indexOf(up), 1);
-      failed++;
-      up.failed = true;
-      UPLOADS.push(up);
-      setTimeout(function () {
-        var ix = UPLOADS.indexOf(up);
-        if (ix >= 0) { UPLOADS.splice(ix, 1); renderPlaylist(); }
-      }, 5000);
-      renderPlaylist();
-      next();
-    };
+    xhr.onerror = function () { finish(false, null); };
     xhr.send(fd);
-  }
-  next();
+  });
 }
 document.getElementById('playlist-upload-btn').addEventListener('click', function () {
   document.getElementById('playlist-file').click();
