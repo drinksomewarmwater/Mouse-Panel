@@ -127,6 +127,8 @@
   .login-card h2 { font-size: 18px; margin: 0 0 4px; }
   .login-card label { display: block; color: #8b98a5; font-size: 13px; margin: 12px 0 4px; }
   .login-card input, .field input { width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; }
+  /* range 滑杆不吃上面那套文本框样式：去掉内边距和边框，轨道才能顶到两端 */
+  .field input[type="range"] { background: transparent; border: none; padding: 0; height: 24px; }
   .login-card button { width: 100%; margin-top: 18px; }
   .login-err { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 18px; }
   .navrow { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
@@ -649,7 +651,7 @@
       <li>用户列表：操作列收窄（两按钮改纵向排布），密码列与 VLESS 列取消显示；密码改在“修改权限 → 修改密码”弹窗里显示当前密码</li>
       <li>用户列表列调整：用户列改名“用户名”，新增“权限”列（管理员/用户），状态列只分正常/停用/故障；到期时间与 IP 拆成两列，管理员到期显示永久，IP 列（含管理员）沿用公用用户的格式；管理员的每月上限与本月已用也按 D1/D2 两行显示</li>
       <li>打开面板默认显示第一台 VPS 的详情（本地服务器排第一），不再恢复上次看的标签页</li>
-      <li>歌词设置新增透明度调节（10–100%，默认 88%），只改悬浮歌词面板的背景深浅，歌词文字不受影响</li>
+      <li>歌词设置新增透明度调节（0–100%，越高越透明，默认 12%），只改悬浮歌词面板的背景深浅，歌词文字不受影响；滑杆轨道顶到两端，拉到 100% 不再留一截</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -668,7 +670,7 @@
       <div><label>识别源</label><select id="lyr-set-source" class="lyr-select"><option value="online">在线识别</option><option value="local">仅本地（只读文件内嵌）</option></select></div>
     </div>
     <div class="field">
-      <div><label>透明度（<span id="lyr-set-opacity-val">88%</span>）</label><input type="range" id="lyr-set-opacity" min="10" max="100" step="1" value="88" style="width:100%;accent-color:#1d9bf0;"></div>
+      <div><label>透明度（<span id="lyr-set-opacity-val">12%</span>）</label><input type="range" id="lyr-set-opacity" min="0" max="100" step="1" value="12" style="width:100%;accent-color:#1d9bf0;"></div>
     </div>
     <div class="meta" style="margin-bottom:12px;">歌词优先读文件内嵌；文件里没有时按识别源检索。切源后会重新识别当前歌曲。透明度只改悬浮歌词面板的背景深浅，歌词文字不受影响。</div>
     <div class="confirm-modal-btns">
@@ -1054,13 +1056,20 @@ try { lyricsEnabled = localStorage.getItem('bgm-lyrics-enabled') !== '0'; } catc
 var lyricsSource = 'online';
 try { lyricsSource = localStorage.getItem('bgm-lyrics-source') || 'online'; } catch (e) {}
 if (['online', 'local'].indexOf(lyricsSource) < 0) lyricsSource = 'online';
-/* 悬浮歌词面板背景不透明度（10–100，默认 88，对应原来写死的 rgba 0.88）。
+/* 悬浮歌词面板背景透明度（0–100，越高越透明；默认 12，对应原来写死的 rgba 0.88）。
    只改面板背景深浅，歌词文字不受影响；存在 localStorage。 */
-var lyricsOpacity = 88;
-try { var _lo = parseInt(localStorage.getItem('bgm-lyrics-opacity'), 10); if (!isNaN(_lo) && _lo >= 10 && _lo <= 100) lyricsOpacity = _lo; } catch (e) {}
+var lyricsTransparency = 12;
+try {
+  var _lt = parseInt(localStorage.getItem('bgm-lyrics-transparency'), 10);
+  if (isNaN(_lt)) { // 兼容刚上线的旧版：以前存的是不透明度，透明度 = 100 - 不透明度
+    var _lo = parseInt(localStorage.getItem('bgm-lyrics-opacity'), 10);
+    if (!isNaN(_lo)) _lt = 100 - _lo;
+  }
+  if (!isNaN(_lt) && _lt >= 0 && _lt <= 100) lyricsTransparency = _lt;
+} catch (e) {}
 function applyLyricsOpacity() {
   var f = document.getElementById('lyrics-float');
-  if (f) f.style.background = 'rgba(26, 34, 48, ' + (lyricsOpacity / 100) + ')';
+  if (f) f.style.background = 'rgba(26, 34, 48, ' + ((100 - lyricsTransparency) / 100) + ')';
 }
 var curLyricsReq = 0;
 var lyricLines = [];
@@ -1332,9 +1341,9 @@ function showLyricsSettings(btn) {
   var src = document.getElementById('lyr-set-source');
   if (src) src.value = lyricsSource;
   var op = document.getElementById('lyr-set-opacity');
-  if (op) op.value = lyricsOpacity;
+  if (op) op.value = lyricsTransparency;
   var opVal = document.getElementById('lyr-set-opacity-val');
-  if (opVal) opVal.textContent = lyricsOpacity + '%';
+  if (opVal) opVal.textContent = lyricsTransparency + '%';
   modalShow(lyricsModal, lyricsModalCard, btn);
 }
 function hideLyricsSettings() { modalHide(lyricsModal, lyricsModalCard, null); }
@@ -1358,10 +1367,10 @@ if (lyrSrc) lyrSrc.addEventListener('change', function (e) {
 var lyrOp = document.getElementById('lyr-set-opacity');
 if (lyrOp) lyrOp.addEventListener('input', function (e) {
   var v = parseInt(e.target.value, 10);
-  if (isNaN(v)) v = 88;
-  v = Math.max(10, Math.min(100, v));
-  lyricsOpacity = v;
-  lsSet('bgm-lyrics-opacity', String(v));
+  if (isNaN(v)) v = 12;
+  v = Math.max(0, Math.min(100, v));
+  lyricsTransparency = v;
+  lsSet('bgm-lyrics-transparency', String(v));
   var opVal = document.getElementById('lyr-set-opacity-val');
   if (opVal) opVal.textContent = v + '%';
   applyLyricsOpacity();
