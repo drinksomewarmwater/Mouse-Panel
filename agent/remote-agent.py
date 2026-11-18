@@ -12,6 +12,9 @@ Subcommands:
   rotate vless|hy2  rotate the credential, restart the service, verify,
                     print {"ok": true, "value": new} or {"ok": false, "error": ...}
   hystats           print the Hysteria /traffic JSON (per-user tx/rx)
+  hy2-online        print the hy2-auth online-IP tracker JSON
+  hy2-hop RANGE     set the Hysteria listen line to a hop range
+                    ('20000-40000') or back to the single node port ('')
   vless-stats       print per-user VLESS delta since the last reset-read
                     (delegates to /usr/local/bin/vless_stats.py --reset).
                     Only the poller may call this: it consumes the counters.
@@ -68,13 +71,66 @@ def run(cmd, timeout=30):
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 
+def read_hop_range(text):
+    """Port-hopping range from the Hysteria listen line: '20000-40000' if
+    listen is ':20000-40000', else '' (single port, hopping off)."""
+    m = re.search(r"^listen:\s*:(\d+)-(\d+)\s*$", text, re.M)
+    return "%s-%s" % (m.group(1), m.group(2)) if m else ""
+
+
+def set_hop_range(hop_range):
+    """Set the Hysteria listen line to a hop range ('20000-40000') or back
+    to the single node port (''). Restarts hysteria-server. Returns the
+    effective listen value. Raises on failure (config is rolled back)."""
+    with open(HYSTERIA_CFG) as f:
+        text = f.read()
+    if hop_range:
+        m = re.fullmatch(r"(\d+)-(\d+)", hop_range.strip())
+        if not m or not (1 <= int(m.group(1)) < int(m.group(2)) <= 65535):
+            raise ValueError("hop range must be START-END, e.g. 20000-40000")
+        if int(m.group(2)) - int(m.group(1)) < 99:
+            raise ValueError("hop range must span at least 100 ports")
+        listen = ":%s" % hop_range.strip()
+    else:
+        listen = ":%d" % HY2_PORT
+    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$", "listen: %s" % listen,
+                          text, count=1, flags=re.M)
+    if n != 1:
+        raise RuntimeError("listen line not found in hysteria config")
+    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
+    try:
+        with open(HYSTERIA_CFG, "w") as f:
+            f.write(new_text)
+        run("systemctl restart hysteria-server")
+        time.sleep(2)
+        if run("systemctl is-active hysteria-server")[1] != "active":
+            raise RuntimeError("hysteria-server not active after restart")
+    except Exception:
+        run("cp %s.bak-hop %s" % (HYSTERIA_CFG, HYSTERIA_CFG))
+        run("systemctl restart hysteria-server")
+        raise
+    return listen
+
+
 def read_hy2_passwords(text):
-    # Multi-user auth (userpass): the admin entry is the panel admin's HY2 password.
-    # Obfs (salamander) is optional: a node without it reports obfs_enabled=False.
-    m = re.search(r'userpass:\s*\n\s+admin:\s*"([^"]+)"', text)
-    if not m:
-        raise RuntimeError("hysteria userpass admin password not found in config.yaml")
-    pw = m.group(1)
+    # Admin HY2 password: with HTTP auth it lives in the hy2-auth user file
+    # (written by hy2_auth_sync.py); fall back to the legacy userpass block
+    # during the transition. Obfs (salamander) is optional: a node without
+    # it reports obfs_enabled=False. Never raises for a missing password —
+    # the panel builds links from its own users.db anyway.
+    pw = ""
+    try:
+        with open("/var/lib/mouse-panel/hy2-users.json") as f:
+            users = json.load(f)
+        admin = users.get("admin") if isinstance(users, dict) else None
+        if isinstance(admin, dict) and admin.get("password"):
+            pw = admin["password"]
+    except (OSError, ValueError):
+        pass
+    if not pw:
+        m = re.search(r'userpass:\s*\n\s+admin:\s*"([^"]+)"', text)
+        if m:
+            pw = m.group(1)
     m2 = re.search(r'salamander:\s*\n\s+password:\s*"([^"]+)"', text)
     if not m2:
         return pw, "", False
@@ -164,6 +220,7 @@ def read_all():
         "domain": DOMAIN,
         "vless_port": VLESS_PORT,
         "hy2_port": HY2_PORT,
+        "hop_range": read_hop_range(hy_text),
         "vless_security": security,
         "reality": reality,
         "obfs_enabled": obfs_enabled,
@@ -319,6 +376,27 @@ def main():
         except Exception as e:
             print(json.dumps({"ok": False, "error": str(e)}))
             return 1
+    if sys.argv[1] == "hy2-hop":
+        # Set the Hysteria listen line to a hop range ('20000-40000') or
+        # back to the single node port (empty argument). Reads the range
+        # from argv[2] ('' = off). Restarts hysteria-server.
+        try:
+            listen = set_hop_range(sys.argv[2] if len(sys.argv) > 2 else "")
+            print(json.dumps({"ok": True, "listen": listen}))
+            return 0
+        except Exception as e:
+            print(json.dumps({"ok": False, "error": str(e)}))
+            return 1
+    if sys.argv[1] == "hy2-online":
+        # Print the hy2-auth online-IP tracker ({username: {ip: last_seen}}).
+        # Used by the panel API to show each user's currently online IPs.
+        try:
+            with open("/var/lib/mouse-panel/hy2-online.json") as f:
+                print(f.read())
+            return 0
+        except OSError:
+            print("{}")
+            return 0
     if sys.argv[1] == "rotate" and len(sys.argv) >= 3 and sys.argv[2] in ("vless", "hy2"):
         try:
             value = rotate_vless() if sys.argv[2] == "vless" else rotate_hy2()
