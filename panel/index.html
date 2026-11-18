@@ -618,7 +618,6 @@
       <div class="confirm-modal-field"><label id="au-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="au-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
       <div class="confirm-modal-field"><label id="au-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="au-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
       <div class="confirm-modal-field"><label>到期时间（可选，点开滚轮选年月日）</label><button type="button" class="log-wheel-field empty" id="au-expires-btn">永久</button></div>
-      <div class="confirm-modal-field"><label>IP 限制（可选，0 = 不限）</label><input id="au-ip-limit" type="number" min="0" max="1000" step="1" placeholder="0"></div>
     </div>
     <div class="err" id="add-user-err"></div>
     <div class="confirm-modal-btns">
@@ -665,6 +664,8 @@
       <li>悬浮歌词与歌词功能已移除：在线识别对同名歌曲经常认错，不好用；音乐播放与播放列表不受影响</li>
       <li>音乐栏封面已移除；音乐栏改固定宽度 320px，歌名太长时横向滚动循环显示，能放下时不动</li>
       <li>音乐栏改两行居中排版：上一行 上一首 / 播放·暂停 / 下一首，下一行 播放模式 / 播放列表；歌名仍左对齐，宽度不变</li>
+      <li>管理员用户列表每行加“复制订阅”按钮（含管理员自己）：一点复制该用户的订阅链接，拉取即返回该用户的全部节点（HY2 + VLESS，两台服务器）</li>
+      <li>IP 数量限制功能已移除：VLESS 无法实时计数、HY2 只在建连时计数，限制不住，删掉</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1382,7 +1383,7 @@ playlistModal.addEventListener('click', function (e) { if (e.target === playlist
 document.getElementById('playlist-close-btn').addEventListener('click', hidePlaylistModal);
 
 /* ---- 修改权限弹窗 (display-type: click the backdrop to close).
-   除删除外的用户操作都收进这里：流量设置、修改密码、到期时间、IP限制、
+   除删除外的用户操作都收进这里：流量设置、修改密码、到期时间、
    停用用户（已停用时显示启用用户）。点某一项后本弹窗留在下层，对应的
    设置弹窗盖在上面；设置弹窗关掉后本弹窗还在，可继续点别的项，点空白处
    或“关闭”才收回本弹窗。确认弹窗的 FLIP 起点用触发本弹窗的“修改权限”按钮。 ---- */
@@ -1403,8 +1404,8 @@ function permGo(fn) {
   var u = permUser;
   if (u) fn(u, btn);
 }
-function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, hy2Password, btn, hop) {
-  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password, hop: hop };
+function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwChange, pending, hy2Password, btn, hop) {
+  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password, hop: hop };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
@@ -1414,7 +1415,6 @@ function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, a
     { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limD1, u.limLocal, b); } },
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
-    { label: 'IP限制', fn: function(u, b){ setIpLimit(u.username, u.ipLimit, b); } },
     { label: '端口跳跃', fn: function(u, b){ setHop(u.username, u.hop, b); } },
   ];
   if (!pending) {
@@ -3151,16 +3151,6 @@ function expiryCell(x) {
   if (ts < Math.floor(Date.now() / 1000)) return '<span class="bad">已到期</span>';
   return fmtDateBJ(ts);
 }
-/* ---- IP 列：与原来“到期 / IP”列第二行同一格式——“限 N IP · M 在线”或
-   “不限 · M 在线”；在线数按 online_ips（最近 10 分钟内鉴权过的 IP）去重计数。
-   管理员也用同一格式。 ---- */
-function ipCell(x) {
-  var ips = {};
-  (x.online_ips || []).forEach(function (o) { if (o && o.ip) ips[o.ip] = true; });
-  var n = Object.keys(ips).length;
-  var lim = (x.ip_limit > 0) ? ('限 ' + x.ip_limit + ' IP') : '不限';
-  return lim + ' · ' + n + ' 在线';
-}
 /* ---- 状态列：只分三档。故障 = 任一台超限（已停用或当前已超）；停用 = 账号
    未启用或待设置密码；其余正常。 ---- */
 function userStatus(x, overD1, overLocal, pending) {
@@ -3168,6 +3158,21 @@ function userStatus(x, overD1, overLocal, pending) {
   if (dis.d1 || dis.local || overD1 || overLocal || x.disabled_reason === 'over_limit') return { text: '故障', cls: 'bad' };
   if (!x.enabled || pending) return { text: '停用', cls: 'bad' };
   return { text: '正常', cls: '' };
+}
+/* ---- 一键复制订阅链接：取该用户的公开订阅地址（/sub/<token>，
+   拉取即返回该用户的全部节点：HY2 + VLESS，两台服务器），复制到剪贴板。
+   复制失败时把链接打到 toast 里，管理员可以手动复制。 ---- */
+function copySubLink(username, btn) {
+  fetch('/api/admin/users/' + encodeURIComponent(username) + '/sub', { cache: 'no-store' })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.d.sub_url) throw new Error((res.d && res.d.error) || '获取订阅链接失败');
+      var url = res.d.sub_url;
+      copyStr(url, btn, function (ok) {
+        if (!ok) showToast('复制失败，订阅链接：' + url, true);
+      });
+    })
+    .catch(function (e) { showToast('获取订阅链接失败：' + e.message, true); });
 }
 function loadUsers() {
   var wrap = document.getElementById('users-table-wrap');
@@ -3178,7 +3183,7 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
-      var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>IP</th><th>操作</th></tr>';
+      var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>操作</th></tr>';
       if (admin) {
         // 管理员的每月上限与本月已用也按普通用户（公用）的格式：D1 / D2 各一行。
         var aLim = admin.limits || {};
@@ -3187,8 +3192,8 @@ function loadUsers() {
           + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (aLim.local == null ? '不限' : aLim.local + ' GB') + '</span></div>';
         var aMonthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(aSv.d1 ? aSv.d1.month_total : 0) + '</span></div>'
           + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(aSv.local ? aSv.local.month_total : 0) + '</span></div>';
-        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="IP" class="nowrap">' + ipCell(admin) + '</td>'
-          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
+        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td>'
+          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button><button class="small ghost" onclick="copySubLink(\'admin\', this)">复制订阅</button></div></td></tr>';
       }
       users.forEach(function(x){
         var lim = x.limits || {};
@@ -3204,9 +3209,10 @@ function loadUsers() {
         var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
         var pw = pending ? '未设置' : esc(x.hy2_password || '—');
         var st = userStatus(x, overD1, overLocal, pending);
-        html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="IP" class="nowrap">' + ipCell(x) + '</td>'
+        html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this, ' + (x.hop ? 'true' : 'false') + ')">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this, ' + (x.hop ? 'true' : 'false') + ')">修改权限</button>'
+          + '<button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3222,7 +3228,7 @@ function loadUsers() {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
 /* ---- 添加用户弹窗：点“添加用户”开弹窗，在弹窗里填用户名、流量上限、
-   到期时间、IP 限制。到期时间用滚轮选择器（与修改权限里的到期时间同一组件，
+   到期时间。到期时间用滚轮选择器（与修改权限里的到期时间同一组件，
    只显示年月日，可设为永久），不用原生的 <input type="date">。 ---- */
 var addUserModal = document.getElementById('add-user-modal');
 var addUserModalCard = document.getElementById('add-user-modal-card');
@@ -3239,7 +3245,6 @@ function showAddUserModal(btn) {
   document.getElementById('au-name').value = '';
   document.getElementById('au-limit-d1').value = '';
   document.getElementById('au-limit-local').value = '';
-  document.getElementById('au-ip-limit').value = '';
   document.getElementById('add-user-err').textContent = '';
   auSetExpires(null);
   var ok = document.getElementById('add-user-ok');
@@ -3279,16 +3284,11 @@ function submitAddUser() {
   var name = document.getElementById('au-name').value.trim();
   var limD1 = document.getElementById('au-limit-d1').value.trim();
   var limLocal = document.getElementById('au-limit-local').value.trim();
-  var ipLim = document.getElementById('au-ip-limit').value.trim();
   var err = document.getElementById('add-user-err');
   err.textContent = '';
   if (!name) { err.textContent = '用户名必填。'; return; }
   var body = { username: name, limits: { d1: limD1 === '' ? null : Number(limD1), local: limLocal === '' ? null : Number(limLocal) } };
   if (auExpires) body.expires_at = auExpires;
-  if (ipLim !== '') {
-    if (!/^\d+$/.test(ipLim) || Number(ipLim) < 0 || Number(ipLim) > 1000) { err.textContent = 'IP 限制须为 0–1000 的整数。'; return; }
-    body.ip_limit = Number(ipLim);
-  }
   var ok = document.getElementById('add-user-ok');
   ok.disabled = true;
   ok.textContent = '添加中…';
@@ -3375,28 +3375,6 @@ function showExpiryWheel(username, curExpiresAt, btn) {
 }
 function setExpiry(username, curExpiresAt, btn) {
   showExpiryWheel(username, curExpiresAt, btn);
-}
-
-function setIpLimit(username, curLimit, btn) {
-  showConfirm(
-    '设置 ' + username + ' 的同时在线 IP 上限',
-    '同一账号最多同时在线的 IP 数；0 表示不限。超限的设备连接会被拒绝。',
-    btn,
-    function(v){
-      if (v === undefined) return;
-      var raw = (v || '').trim();
-      if (raw === '' || !/^\d+$/.test(raw) || Number(raw) < 0 || Number(raw) > 1000) { showToast('上限须为 0–1000 的整数，0 表示不限。', true); return; }
-      fetch('/api/admin/users/' + encodeURIComponent(username) + '/ip-limit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip_limit: Number(raw) }) })
-        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
-        .then(function(res){
-          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
-          loadUsers();
-          showToast('IP 上限已更新。');
-        })
-        .catch(function(e){ showToast('设置失败：' + e.message, true); });
-    },
-    { input: true, inputType: 'number', inputPlaceholder: '0–1000，0 表示不限', inputValue: String(curLimit || 0) }
-  );
 }
 
 function setHop(username, curHop, btn) {
