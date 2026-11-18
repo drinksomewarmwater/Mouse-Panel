@@ -566,6 +566,7 @@ $PANEL_DOMAIN:$PANEL_PORT {
 	handle {
 		root * $PANEL_DIR
 		reverse_proxy /api/* 127.0.0.1:18080
+		reverse_proxy /sub/* 127.0.0.1:18080
 		file_server
 	}
 }
