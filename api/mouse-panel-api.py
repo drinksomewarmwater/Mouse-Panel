@@ -540,8 +540,8 @@ def ensure_user_columns():
         ("disabled_json", "ALTER TABLE users ADD COLUMN disabled_json TEXT"),
         ("allow_pw_change", "ALTER TABLE users ADD COLUMN allow_pw_change INTEGER NOT NULL DEFAULT 1"),
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
-        ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
         ("hop", "ALTER TABLE users ADD COLUMN hop INTEGER NOT NULL DEFAULT 1"),
+        ("sub_token", "ALTER TABLE users ADD COLUMN sub_token TEXT"),
     ]:
         if col not in cols:
             conn.execute(ddl)
@@ -580,14 +580,6 @@ def parse_expires_at(row):
         return None
 
 
-def parse_ip_limit(row):
-    """Concurrent-online-IP limit; 0 = unlimited."""
-    try:
-        return max(0, int(row.get("ip_limit") or 0))
-    except (TypeError, ValueError):
-        return 0
-
-
 def parse_expires_body(body):
     """Expiry from a request body: a YYYY-MM-DD date, a Unix timestamp, or
     null/empty = permanent. Returns an int timestamp or None. Raises ValueError."""
@@ -609,57 +601,6 @@ def parse_expires_body(body):
     if ts < 0:
         raise ValueError("到期时间无效")
     return ts
-
-
-# Auth-server online-IP tracker: {username: {ip: last_seen_ts}}.
-# Written by hy2-auth.py on each /auth call; entries older than
-# HY2_ONLINE_TIMEOUT are stale. Local file + the D1 agent's hy2-online.
-HY2_ONLINE_PATH = "/var/lib/mouse-panel/hy2-online.json"
-HY2_ONLINE_TIMEOUT = 600
-
-
-def read_online_ips():
-    """{username: [ip, ...]} currently online, local server + D1 (best effort).
-    An IP counts if the auth server saw it within HY2_ONLINE_TIMEOUT."""
-    import time as _time
-    now = int(_time.time())
-    out = {}
-
-    def _collect(path_or_text, server):
-        try:
-            data = json.loads(path_or_text) if isinstance(path_or_text, str) else path_or_text
-        except Exception:
-            return
-        if not isinstance(data, dict):
-            return
-        for username, ips in data.items():
-            if not isinstance(ips, dict):
-                continue
-            for ip, seen in ips.items():
-                try:
-                    if now - int(seen) < HY2_ONLINE_TIMEOUT:
-                        out.setdefault(username, []).append({"server": server, "ip": str(ip)})
-                except (TypeError, ValueError):
-                    continue
-
-    try:
-        with open(HY2_ONLINE_PATH) as f:
-            _collect(f.read(), "local")
-    except OSError:
-        pass
-    # Remote servers' trackers via the panel key + remote agent
-    # (best effort, never fatal).
-    for sv in load_servers():
-        if sv.get("type") != "remote":
-            continue
-        try:
-            rc, out_txt, _err = remote_ssh(
-                sv, "python3 %s hy2-online" % AGENT_SCRIPT, timeout=10)
-            if rc == 0 and out_txt.strip():
-                _collect(out_txt.strip(), sv.get("id") or "remote")
-        except Exception:
-            pass
-    return out
 
 
 def parse_disabled(row):
@@ -777,20 +718,17 @@ def list_users():
     rows = conn.execute(
         "SELECT id, username, role, limit_gb, limits_json, disabled_json, enabled,"
         " disabled_reason, created_at, hy2_password, pw_set, vless_uuid, vless_port,"
-        " allow_pw_change, expires_at, ip_limit, hop"
+        " allow_pw_change, expires_at, hop"
         " FROM users ORDER BY role DESC, username"
     ).fetchall()
     conn.close()
-    online = read_online_ips()
     out = []
     for r in rows:
         d = dict(r)
         d["limits"] = parse_limits(d)
         d["disabled"] = parse_disabled(d)
         d["expires_at"] = parse_expires_at(d)
-        d["ip_limit"] = parse_ip_limit(d)
         d["hop"] = 1 if d.get("hop") is None else (1 if d["hop"] else 0)
-        d["online_ips"] = online.get(d["username"], [])
         out.append(d)
     return out
 
@@ -1197,6 +1135,85 @@ def user_hy2_links(username):
     return user_links(username)
 
 
+# --- per-user subscription links ---
+# One unguessable token per user (32 hex chars, stored in users.db).
+# GET /sub/<token> returns that user's full node list as plain text, one
+# proxy link per line, so Clash can subscribe to it directly. The token
+# is a bearer secret: it is created lazily on first use, never appears
+# in a non-admin response, and is never written to the log.
+
+def get_or_create_sub_token(username):
+    """Return the user's subscription token, creating one if needed.
+    Returns None when the user does not exist."""
+    ensure_user_columns()
+    conn = db()
+    row = conn.execute(
+        "SELECT sub_token FROM users WHERE username=?", (username,)
+    ).fetchone()
+    if row is None:
+        conn.close()
+        return None
+    if row["sub_token"]:
+        conn.close()
+        return row["sub_token"]
+    token = secrets.token_hex(16)
+    conn.execute(
+        "UPDATE users SET sub_token=? WHERE username=?", (token, username)
+    )
+    conn.commit()
+    conn.close()
+    return token
+
+
+def get_user_by_sub_token(token):
+    """Look up a user by subscription token. Returns the user row dict
+    or None (also None for a malformed token)."""
+    if not token or not re.fullmatch(r"[0-9a-f]{32}", token):
+        return None
+    ensure_user_columns()
+    conn = db()
+    row = conn.execute(
+        "SELECT * FROM users WHERE sub_token=?", (token,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def subscription_links(username):
+    """All of one user's node links (HY2 + VLESS, both servers). The
+    admin has no per-user VLESS UUID/port, so the admin's links come
+    from the admin builders; regular users go through user_links."""
+    u = get_user(username)
+    if not u:
+        raise RuntimeError("user not found")
+    lines = []
+    if u.get("role") == "admin":
+        vless = load_links().get("vless", "")
+        if vless:
+            vless = re.sub(r"#.*$", "#【推荐】%s-Vless" % local_server_name(),
+                           vless, count=1)
+        lines.append(admin_local_hy2_link())
+        if vless:
+            lines.append(vless)
+        for s in load_servers():
+            if s.get("type") != "remote":
+                continue
+            try:
+                rl = remote_links(s)
+            except Exception:
+                continue
+            if rl.get("hy2"):
+                lines.append(rl["hy2"])
+            if rl.get("vless"):
+                lines.append(rl["vless"])
+    else:
+        d = user_links(username)
+        for key in ("d2", "vless_d2", "d1", "vless_d1"):
+            if d.get(key):
+                lines.append(d[key])
+    return [x for x in lines if x]
+
+
 def service_active(name):
     rc, out, _ = run("systemctl is-active %s" % name)
     return out == "active"
@@ -1488,7 +1505,10 @@ def export_logs(all_flag, from_s, to_s):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        log.info("%s %s", self.client_address[0], fmt % args)
+        msg = fmt % args
+        # Never log a subscription token: the request line would carry it.
+        msg = re.sub(r"/sub/[0-9a-f]{32}", "/sub/<token>", msg)
+        log.info("%s %s", self.client_address[0], msg)
 
     def _json(self, code, obj, set_cookie=None, clear_cookie=False):
         body = json.dumps(obj).encode()
@@ -1508,6 +1528,14 @@ class Handler(BaseHTTPRequestHandler):
             )
         self.end_headers()
         self.wfile.write(body)
+
+    def _text(self, code, body):
+        data = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _read_json(self):
         try:
@@ -1589,6 +1617,21 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         p = u.path
+        m = re.fullmatch(r"/sub/([0-9a-f]{32})", p)
+        if m:
+            # Public subscription feed: no login (Clash fetches it
+            # directly). A disabled user or unknown token gets 404; the
+            # token is never echoed back in an error body.
+            try:
+                usr = get_user_by_sub_token(m.group(1))
+                if not usr or not usr.get("enabled"):
+                    self._text(404, "not found\n")
+                    return
+                lines = subscription_links(usr["username"])
+                self._text(200, "\n".join(lines) + ("\n" if lines else ""))
+            except Exception:
+                self._text(404, "not found\n")
+            return
         if p == "/api/me":
             me = self._me()
             if not me:
@@ -1716,6 +1759,25 @@ class Handler(BaseHTTPRequestHandler):
                 for usr in users:
                     usr.update(user_usage(usr["username"]))
                 self._json(200, {"users": users})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+            return
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/sub", p)
+        if m:
+            if not self._require(admin_only=True):
+                return
+            username = unquote(m.group(1))
+            try:
+                token = get_or_create_sub_token(username)
+                if not token:
+                    self._json(404, {"error": "用户不存在"})
+                    return
+                # The panel sits behind Caddy (HTTPS); X-Forwarded-Proto
+                # carries the public scheme. The Host header gives the
+                # public host, so the URL works from the panel domain.
+                proto = self.headers.get("X-Forwarded-Proto") or "https"
+                host = self.headers.get("Host") or "localhost"
+                self._json(200, {"sub_url": "%s://%s/sub/%s" % (proto, host, token)})
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
@@ -2050,13 +2112,6 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 self._json(400, {"error": str(e) or "到期时间无效"})
                 return
-            try:
-                ip_limit = int(body.get("ip_limit") or 0)
-                if ip_limit < 0 or ip_limit > 1000:
-                    raise ValueError
-            except (TypeError, ValueError):
-                self._json(400, {"error": "同时在线 IP 上限须为 0–1000 的整数，0 表示不限"})
-                return
             if get_user(username):
                 self._json(400, {"error": "用户名已存在"})
                 return
@@ -2078,12 +2133,12 @@ class Handler(BaseHTTPRequestHandler):
                         "INSERT INTO users (username, pw_hash, hy2_password, limit_gb,"
                         " limits_json, vless_uuid, vless_port, role,"
                         " enabled, disabled_reason, setup_token_hash, pw_set, created_at,"
-                        " expires_at, ip_limit)"
+                        " expires_at)"
                         " VALUES (?, '', '', ?, ?, ?, ?, 'user', 0, 'pending_setup', ?, 0, ?,"
-                        " ?, ?)",
+                        " ?)",
                         (username, limit_gb, json.dumps(limits),
                          vless_uuid, vless_port, token_hash, now,
-                         expires_at, ip_limit),
+                         expires_at),
                     )
                     conn.commit()
                     conn.close()
@@ -2350,7 +2405,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
-        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|ip-limit|hop)", p)
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|hop)", p)
         if m:
             if not self._require(admin_only=True):
                 return
@@ -2422,23 +2477,6 @@ class Handler(BaseHTTPRequestHandler):
                         conn.execute(
                             "UPDATE users SET expires_at=? WHERE username=?",
                             (expires_at, username),
-                        )
-                        conn.commit()
-                        conn.close()
-                        sync_hy2_users_bg()
-                        self._json(200, {"ok": True})
-                    elif action == "ip-limit":
-                        try:
-                            ip_limit = int(body.get("ip_limit") or 0)
-                            if ip_limit < 0 or ip_limit > 1000:
-                                raise ValueError
-                        except (TypeError, ValueError):
-                            self._json(400, {"error": "同时在线 IP 上限须为 0–1000 的整数，0 表示不限"})
-                            conn.close()
-                            return
-                        conn.execute(
-                            "UPDATE users SET ip_limit=? WHERE username=?",
-                            (ip_limit, username),
                         )
                         conn.commit()
                         conn.close()
