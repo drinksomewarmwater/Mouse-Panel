@@ -57,6 +57,13 @@
   .perm-actions button:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
   .perm-actions button.danger { color: #f87171; }
   .perm-actions button.danger:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  /* ---- 添加用户弹窗：字段纵向排布 ---- */
+  #add-user-fields .confirm-modal-field { margin-bottom: 14px; }
+  #add-user-fields .confirm-modal-field:last-child { margin-bottom: 18px; }
+  #add-user-fields label { display: block; color: #8b98a5; font-size: 13px; margin: 0 0 6px; }
+  #add-user-fields input { display: block; width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  #add-user-err { color: #f87171; font-size: 13px; margin-bottom: 12px; min-height: 0; }
+  #add-user-err:not(:empty) { margin-bottom: 12px; }
   .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); z-index: 100; background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); color: #e6e6e6; font-size: 14px; line-height: 1.5; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); max-width: calc(100vw - 48px); opacity: 0; visibility: hidden; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; pointer-events: none; }
   .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
   .toast.err { border-color: rgba(248, 113, 113, 0.6); color: #fca5a5; }
@@ -324,16 +331,8 @@
   <div class="view" id="view-users">
   <div class="card">
     <h2>添加用户</h2>
-    <div class="field">
-      <div><label>用户名（2-32 位，支持中文、字母、数字、下划线和横线）</label><input id="nu-name" type="text" placeholder="比如 小明 或 xiaoming"></div>
-      <div><label id="nu-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="nu-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
-      <div><label id="nu-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="nu-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
-      <div><label>到期（可选，留空 = 永久）</label><input id="nu-expires" type="date"></div>
-      <div><label>IP 限制（可选，0 = 不限）</label><input id="nu-ip-limit" type="number" min="0" max="1000" step="1" placeholder="0"></div>
-      <div style="flex:0 0 auto"><button onclick="addUser(this)">添加用户</button></div>
-    </div>
+    <div><button onclick="showAddUserModal(this)">添加用户</button></div>
     <div class="hint">添加后只生成一个一次性口令，把它发给新用户，他首次登录时用这个口令自己设置密码。设置完成后他立刻获得两台服务器的 HY2 与 VLESS 专属链接（用户名即 HY2 账号，VLESS 用专属端口）。上限按台分别计算：某台超限只停那台的节点，另一台不受影响，下月 1 号自动恢复。</div>
-    <div class="err" id="nu-err"></div>
   </div>
 
   <div class="card">
@@ -624,6 +623,24 @@
   </div>
 </div>
 
+<div class="confirm-modal" id="add-user-modal">
+  <div class="confirm-modal-card" id="add-user-modal-card">
+    <div class="confirm-modal-title">添加用户</div>
+    <div id="add-user-fields">
+      <div class="confirm-modal-field"><label>用户名（2-32 位，支持中文、字母、数字、下划线和横线）</label><input id="au-name" type="text" placeholder="比如 小明 或 xiaoming"></div>
+      <div class="confirm-modal-field"><label id="au-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="au-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div class="confirm-modal-field"><label id="au-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="au-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div class="confirm-modal-field"><label>到期时间（可选，点开滚轮选年月日）</label><button type="button" class="log-wheel-field empty" id="au-expires-btn">永久</button></div>
+      <div class="confirm-modal-field"><label>IP 限制（可选，0 = 不限）</label><input id="au-ip-limit" type="number" min="0" max="1000" step="1" placeholder="0"></div>
+    </div>
+    <div class="err" id="add-user-err"></div>
+    <div class="confirm-modal-btns">
+      <button class="ghost" id="add-user-cancel">取消</button>
+      <button id="add-user-ok">添加</button>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
     <div class="confirm-modal-title" id="version-modal-title">V1.1.3 更新日志</div>
@@ -636,6 +653,7 @@
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
       <li>修改权限二级弹窗关闭后菜单保留；所有弹窗统一点空白处收回</li>
+      <li>添加用户改成弹窗填写（用户名、流量上限、到期时间、IP 限制），到期时间与修改权限里统一用滚轮选择器</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1978,9 +1996,9 @@ function d1CardTitle(kind) {
   return kind; // node card titles show protocol only, no server name
 }
 function applyAdminServerNames() {
-  var ll = document.getElementById('nu-limit-local-label');
+  var ll = document.getElementById('au-limit-local-label');
   if (ll) ll.textContent = adminServerName('local', 'Debian-2') + ' 每月上限（GB，留空 = 不限）';
-  var ld = document.getElementById('nu-limit-d1-label');
+  var ld = document.getElementById('au-limit-d1-label');
   if (ld) ld.textContent = adminServerName('d1', 'Debian-1') + ' 每月上限（GB，留空 = 不限）';
   var t1 = document.querySelector('#card-d1vless .card-name');
   if (t1) t1.textContent = d1CardTitle('VLESS + TLS');
@@ -3449,42 +3467,95 @@ function loadUsers() {
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
-function addUser(btn) {
-  var name = document.getElementById('nu-name').value.trim();
-  var limD1 = document.getElementById('nu-limit-d1').value.trim();
-  var limLocal = document.getElementById('nu-limit-local').value.trim();
-  var exp = document.getElementById('nu-expires').value.trim();
-  var ipLim = document.getElementById('nu-ip-limit').value.trim();
-  var err = document.getElementById('nu-err');
+/* ---- 添加用户弹窗：点“添加用户”开弹窗，在弹窗里填用户名、流量上限、
+   到期时间、IP 限制。到期时间用滚轮选择器（与修改权限里的到期时间同一组件，
+   只显示年月日，可设为永久），不用原生的 <input type="date">。 ---- */
+var addUserModal = document.getElementById('add-user-modal');
+var addUserModalCard = document.getElementById('add-user-modal-card');
+var addUserSrcBtn = null;
+var auExpires = null; // 'YYYY-MM-DD' 或 null（永久）
+function auSetExpires(val) {
+  auExpires = val;
+  var b = document.getElementById('au-expires-btn');
+  if (val) { b.textContent = val; b.classList.remove('empty'); }
+  else { b.textContent = '永久'; b.classList.add('empty'); }
+}
+function showAddUserModal(btn) {
+  addUserSrcBtn = btn;
+  document.getElementById('au-name').value = '';
+  document.getElementById('au-limit-d1').value = '';
+  document.getElementById('au-limit-local').value = '';
+  document.getElementById('au-ip-limit').value = '';
+  document.getElementById('add-user-err').textContent = '';
+  auSetExpires(null);
+  var ok = document.getElementById('add-user-ok');
+  ok.disabled = false;
+  ok.textContent = '添加';
+  modalShow(addUserModal, addUserModalCard, btn);
+}
+function hideAddUserModal() {
+  modalHide(addUserModal, addUserModalCard, addUserSrcBtn);
+  addUserSrcBtn = null;
+}
+function showAddUserExpiryWheel(btn) {
+  // 到期时间滚轮：只年月日 3 列；确定只记下值（不发请求），由“添加”统一提交；
+  // “设为永久”清掉值。
+  logWheelTarget = null;
+  logWheelSrcBtn = btn;
+  logWheelUnits = ['year', 'month', 'day'];
+  var cur;
+  if (auExpires) {
+    var p = auExpires.split('-');
+    cur = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0);
+  } else {
+    var now = new Date();
+    cur = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  }
+  logWheelDate = cur;
+  logWheelOnOk = function (picked) {
+    auSetExpires(picked.getFullYear() + '-' + logPad(picked.getMonth() + 1) + '-' + logPad(picked.getDate()));
+  };
+  logWheelOnClear = function () { auSetExpires(null); };
+  document.getElementById('log-wheel-clear').classList.remove('hidden');
+  document.getElementById('log-wheel-title').textContent = '选择到期时间';
+  logWheelBuild();
+  modalShow(logWheelModal, logWheelCard, btn);
+}
+function submitAddUser() {
+  var name = document.getElementById('au-name').value.trim();
+  var limD1 = document.getElementById('au-limit-d1').value.trim();
+  var limLocal = document.getElementById('au-limit-local').value.trim();
+  var ipLim = document.getElementById('au-ip-limit').value.trim();
+  var err = document.getElementById('add-user-err');
   err.textContent = '';
   if (!name) { err.textContent = '用户名必填。'; return; }
-  if (exp !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(exp)) { err.textContent = '到期时间须为 YYYY-MM-DD 格式。'; return; }
   var body = { username: name, limits: { d1: limD1 === '' ? null : Number(limD1), local: limLocal === '' ? null : Number(limLocal) } };
-  if (exp !== '') body.expires_at = exp;
+  if (auExpires) body.expires_at = auExpires;
   if (ipLim !== '') {
     if (!/^\d+$/.test(ipLim) || Number(ipLim) < 0 || Number(ipLim) > 1000) { err.textContent = 'IP 限制须为 0–1000 的整数。'; return; }
     body.ip_limit = Number(ipLim);
   }
-  btn.disabled = true;
-  btn.textContent = '添加中…';
+  var ok = document.getElementById('add-user-ok');
+  ok.disabled = true;
+  ok.textContent = '添加中…';
   fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
     .then(function(res){
       if (!res.ok) throw new Error((res.d && res.d.error) || '添加失败');
-      document.getElementById('nu-name').value = '';
-      document.getElementById('nu-limit-d1').value = '';
-      document.getElementById('nu-limit-local').value = '';
-      document.getElementById('nu-expires').value = '';
-      document.getElementById('nu-ip-limit').value = '';
       var token = res.d.setup_token || '';
       lastRegUser = name;
       lastRegLink = location.origin + location.pathname + '?setup=1&user=' + encodeURIComponent(name) + '&token=' + encodeURIComponent(token);
-      showRegModal(name, token, lastRegLink, btn);
+      hideAddUserModal();
+      showRegModal(name, token, lastRegLink, addUserSrcBtn);
       loadUsers();
     })
     .catch(function(e){ err.textContent = e.message; })
-    .finally(function(){ btn.disabled = false; btn.textContent = '添加用户'; });
+    .finally(function(){ ok.disabled = false; ok.textContent = '添加'; });
 }
+addUserModal.addEventListener('click', function (e) { if (e.target === addUserModal) hideAddUserModal(); });
+document.getElementById('add-user-cancel').addEventListener('click', hideAddUserModal);
+document.getElementById('add-user-ok').addEventListener('click', submitAddUser);
+document.getElementById('au-expires-btn').addEventListener('click', function () { showAddUserExpiryWheel(this); });
 
 function setLimit(username, curD1, curLocal, btn) {
   showConfirm(
