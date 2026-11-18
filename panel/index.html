@@ -3186,7 +3186,7 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
-      var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>操作</th></tr>';
+      var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>订阅</th><th>操作</th></tr>';
       if (admin) {
         // 管理员的每月上限与本月已用也按普通用户（公用）的格式：D1 / D2 各一行。
         var aLim = admin.limits || {};
@@ -3195,8 +3195,8 @@ function loadUsers() {
           + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (aLim.local == null ? '不限' : aLim.local + ' GB') + '</span></div>';
         var aMonthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(aSv.d1 ? aSv.d1.month_total : 0) + '</span></div>'
           + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(aSv.local ? aSv.local.month_total : 0) + '</span></div>';
-        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td>'
-          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button><button class="small ghost" onclick="copySubLink(\'admin\', this)">复制订阅</button></div></td></tr>';
+        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'admin\', this)">复制订阅</button></td>'
+          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
       }
       users.forEach(function(x){
         var lim = x.limits || {};
@@ -3212,10 +3212,9 @@ function loadUsers() {
         var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
         var pw = pending ? '未设置' : esc(x.hy2_password || '—');
         var st = userStatus(x, overD1, overLocal, pending);
-        html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td>'
+        html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button></td>'
           + '<td class="acts"><div class="acts-grid">'
           + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this, ' + (x.hop ? 'true' : 'false') + ')">修改权限</button>'
-          + '<button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
