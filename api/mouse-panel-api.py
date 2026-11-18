@@ -474,6 +474,7 @@ def ensure_user_columns():
         ("allow_pw_change", "ALTER TABLE users ADD COLUMN allow_pw_change INTEGER NOT NULL DEFAULT 1"),
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
         ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
+        ("hop", "ALTER TABLE users ADD COLUMN hop INTEGER NOT NULL DEFAULT 1"),
     ]:
         if col not in cols:
             conn.execute(ddl)
@@ -709,7 +710,7 @@ def list_users():
     rows = conn.execute(
         "SELECT id, username, role, limit_gb, limits_json, disabled_json, enabled,"
         " disabled_reason, created_at, hy2_password, pw_set, vless_uuid, vless_port,"
-        " allow_pw_change, expires_at, ip_limit"
+        " allow_pw_change, expires_at, ip_limit, hop"
         " FROM users ORDER BY role DESC, username"
     ).fetchall()
     conn.close()
@@ -721,6 +722,7 @@ def list_users():
         d["disabled"] = parse_disabled(d)
         d["expires_at"] = parse_expires_at(d)
         d["ip_limit"] = parse_ip_limit(d)
+        d["hop"] = 1 if d.get("hop") is None else (1 if d["hop"] else 0)
         d["online_ips"] = online.get(d["username"], [])
         out.append(d)
     return out
@@ -848,13 +850,13 @@ def admin_local_hy2_link():
     return local_hy2_link("admin", pw)
 
 
-def local_hy2_link(username, pw):
+def local_hy2_link(username, pw, hop_enabled=True):
     node = load_node()
     domain = node["domain"]
     name = local_server_name()
     q = "sni=%s" % domain
     hop = local_hop_range()
-    if hop:
+    if hop and hop_enabled:
         q += "&mport=%s" % hop
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain,
@@ -915,7 +917,7 @@ def set_local_hop_range(hop_range):
     return listen
 
 
-def remote_hy2_link(server, username, pw):
+def remote_hy2_link(server, username, pw, hop_enabled=True):
     d = remote_read(server)
     domain = d.get("domain") or server.get("host", "")
     port = d.get("hy2_port") or 443
@@ -924,7 +926,7 @@ def remote_hy2_link(server, username, pw):
     if d.get("obfs_enabled") and d.get("obfs_password"):
         obfs = urllib.parse.quote(d["obfs_password"], safe="")
         q = "obfs=salamander&obfs-password=%s&sni=%s" % (obfs, domain)
-    if d.get("hop_range"):
+    if d.get("hop_range") and hop_enabled:
         q += "&mport=%s" % d["hop_range"]
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain, port, q, name))
@@ -953,6 +955,7 @@ def user_links(username):
     port = u["vless_port"]
     pw = urllib.parse.quote(u["hy2_password"], safe="")
     disabled = parse_disabled(u)
+    hop_enabled = (u.get("hop") is None) or bool(u.get("hop"))
     local_name = "本机"
     for s in load_servers():
         if s.get("type") == "local":
@@ -967,14 +970,14 @@ def user_links(username):
     local_vless = re.sub(r"#.*$", "#【推荐】%s-Vless" % local_name,
                          local_vless, count=1)
     out = [{"id": "local", "name": local_name,
-            "link": local_hy2_link(username, pw),
+            "link": local_hy2_link(username, pw, hop_enabled),
             "vless_link": local_vless,
             "disabled": disabled.get("local")}]
     for s in load_servers():
         if s.get("type") != "remote":
             continue
         try:
-            link = remote_hy2_link(s, username, pw)
+            link = remote_hy2_link(s, username, pw, hop_enabled)
             d = remote_read(s)
             vlink = user_vless_link_for(s, d, vuuid, port)
         except Exception:
@@ -2139,7 +2142,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
-        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|ip-limit)", p)
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|ip-limit|hop)", p)
         if m:
             if not self._require(admin_only=True):
                 return
@@ -2233,6 +2236,19 @@ class Handler(BaseHTTPRequestHandler):
                         conn.close()
                         sync_hy2_users_bg()
                         self._json(200, {"ok": True})
+                    elif action == "hop":
+                        # Per-user port hopping: only controls whether this
+                        # user's HY2 links carry mport. No server sync is
+                        # needed — links are generated on demand from the DB.
+                        # The server hop range itself is still set per-server.
+                        hop = 1 if body.get("hop") else 0
+                        conn.execute(
+                            "UPDATE users SET hop=? WHERE username=?",
+                            (hop, username),
+                        )
+                        conn.commit()
+                        conn.close()
+                        self._json(200, {"ok": True, "hop": hop})
                     elif action == "enable":
                         enabled = 1 if body.get("enabled") else 0
                         if enabled and not user.get("pw_set"):
