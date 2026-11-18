@@ -242,6 +242,15 @@
   .pl-row.playing { color: #a5d6ff; }
   .pl-row .pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: 14px; }
   .pl-row .pl-name:hover { color: #fff; }
+  /* Upload progress rows: shown while a file is uploading, so the user
+     can see it is in progress and how far along it is. */
+  .pl-row.uploading { color: #8b98a5; }
+  .pl-row.uploading .pl-name { cursor: default; }
+  .pl-progress { flex-shrink: 0; width: 110px; height: 6px; border-radius: 3px; background: #2a3444; overflow: hidden; }
+  .pl-progress > i { display: block; height: 100%; width: 0%; background: #1d9bf0; border-radius: 3px; transition: width .2s ease; }
+  .pl-pct { flex-shrink: 0; width: 44px; text-align: right; font-size: 12px; color: #8b98a5; }
+  .pl-row.upload-failed { color: #ff6b6b; }
+  .pl-row.upload-failed .pl-name { cursor: default; }
   .pl-check { width: 18px; height: 18px; flex-shrink: 0; accent-color: #1d9bf0; }
   .pl-mv { flex-shrink: 0; padding: 6px 9px !important; font-size: 13px; background: transparent !important; border: 1px solid #2a3444 !important; color: #e6e6e6; }
   .playlist-drop { border: 1px dashed #4a5568; border-radius: 10px; padding: 14px; text-align: center; color: #8b98a5; font-size: 13px; margin-bottom: 14px; }
@@ -652,6 +661,7 @@
       <li>HY2 端口跳跃改用上游的手动重定向方式：Hysteria 只监听单端口，跳跃区间靠内核规则（本地 nftables、远程 iptables）重定向过去；内置的区间监听三连失败、旧规则残留互相冲突，已弃用</li>
       <li>修 HY2 超时：中文域名链接改用 punycode 形式（如 us.xn--yet590c35ai8a.de5.net），Hysteria 的 TLS 认不出中文 SNI、握手失败报 timeout，VLESS 不受影响</li>
       <li>歌词在线识别改模糊：lrclib 按歌名+歌手查不到时，再只按歌名查一次（文件名里的歌手常是频道名不是真歌手，带歌手查会返回空）；歌词缓存换新 key，旧的“暂无歌词”会重新识别</li>
+      <li>上传加进度条：上传时列表里显示“上传中”行，带进度条和百分比，传完变正式曲目，失败显示“上传失败”5 秒；上传改用 XMLHttpRequest 以拿到真实上传进度</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -1908,6 +1918,9 @@ document.getElementById('version-modal-close').addEventListener('click', hideVer
 document.getElementById('version-btn').addEventListener('click', function () { showVersionModal(this); });
 document.getElementById('version-btn').textContent = '版本 ' + PANEL_VERSION;
 
+/* In-flight uploads, shown as progress rows in the playlist so the user
+   can see each file is actually uploading and how far along it is. */
+var UPLOADS = [];
 function renderPlaylist() {
   var list = document.getElementById('playlist-list');
   if (!list) return;
@@ -1915,7 +1928,7 @@ function renderPlaylist() {
      (upload / delete / reorder), so the controls are shown to all. */
   document.getElementById('playlist-drop').classList.remove('hidden');
   document.getElementById('playlist-delete-btn').classList.remove('hidden');
-  if (!PLAYLIST.length) {
+  if (!PLAYLIST.length && !UPLOADS.length) {
     list.innerHTML = '<div class="meta">暂无音乐。点击下方“上传音乐”添加。</div>';
     return;
   }
@@ -1927,6 +1940,19 @@ function renderPlaylist() {
       + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', -1)"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
       + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', 1)"' + (i === PLAYLIST.length - 1 ? ' disabled' : '') + '>↓</button>'
       + '</div>';
+  });
+  UPLOADS.forEach(function (u) {
+    if (u.failed) {
+      html += '<div class="pl-row upload-failed">'
+        + '<span class="pl-name">' + esc(u.name) + ' — 上传失败</span>'
+        + '</div>';
+    } else {
+      html += '<div class="pl-row uploading">'
+        + '<span class="pl-name">↑ ' + esc(u.name) + ' — 上传中</span>'
+        + '<span class="pl-progress"><i style="width:' + u.pct + '%"></i></span>'
+        + '<span class="pl-pct">' + u.pct + '%</span>'
+        + '</div>';
+    }
   });
   list.innerHTML = html;
 }
@@ -1991,7 +2017,7 @@ function plUploadFiles(files) {
   var list = [];
   for (var i = 0; i < files.length; i++) list.push(files[i]);
   if (!list.length) return;
-  var done = 0, failed = 0;
+  var total = list.length, done = 0, failed = 0;
   function next() {
     if (!list.length) {
       loadPlaylist();
@@ -1999,21 +2025,57 @@ function plUploadFiles(files) {
       return;
     }
     var f = list.shift();
+    var up = { name: f.name, pct: 0, failed: false };
+    UPLOADS.push(up);
+    renderPlaylist();
+    /* XMLHttpRequest (not fetch) so we get real upload progress events
+       for the progress bar. */
     var fd = new FormData();
     fd.append('file', f);
-    fetch('/api/music/upload', { method: 'POST', body: fd })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (res.ok && res.d.track) {
-          done++;
-          /* Show the new song at once instead of waiting for the
-             re-fetch at the end (the list used to need a page refresh). */
-          if (!bgmTrackById(res.d.track.id)) PLAYLIST.push(res.d.track);
-          renderPlaylist();
-        } else failed++;
-      })
-      .catch(function () { failed++; })
-      .finally(next);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/music/upload', true);
+    xhr.timeout = 0;
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) up.pct = Math.min(100, Math.round(e.loaded * 100 / e.total));
+      else up.pct = up.pct < 90 ? up.pct + 5 : 90;
+      renderPlaylist();
+    };
+    xhr.onload = function () {
+      var ok = false, track = null;
+      try {
+        var d = JSON.parse(xhr.responseText || '{}');
+        ok = xhr.status >= 200 && xhr.status < 300 && !!d.track;
+        track = d.track || null;
+      } catch (e) { ok = false; }
+      UPLOADS.splice(UPLOADS.indexOf(up), 1);
+      if (ok && track) {
+        done++;
+        if (!bgmTrackById(track.id)) PLAYLIST.push(track);
+      } else {
+        failed++;
+        up.failed = true;
+        UPLOADS.push(up);
+        setTimeout(function () {
+          var ix = UPLOADS.indexOf(up);
+          if (ix >= 0) { UPLOADS.splice(ix, 1); renderPlaylist(); }
+        }, 5000);
+      }
+      renderPlaylist();
+      next();
+    };
+    xhr.onerror = function () {
+      UPLOADS.splice(UPLOADS.indexOf(up), 1);
+      failed++;
+      up.failed = true;
+      UPLOADS.push(up);
+      setTimeout(function () {
+        var ix = UPLOADS.indexOf(up);
+        if (ix >= 0) { UPLOADS.splice(ix, 1); renderPlaylist(); }
+      }, 5000);
+      renderPlaylist();
+      next();
+    };
+    xhr.send(fd);
   }
   next();
 }
