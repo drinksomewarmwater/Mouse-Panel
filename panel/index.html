@@ -666,6 +666,7 @@
       <li>歌词鼠标滚动加回来了：悬浮歌词可用鼠标滚轮手动滚动，仍不显示滚动条；手动滚后 8 秒内自动居中暂停，方便读词，8 秒没动恢复跟随</li>
       <li>歌词识别改打分制：候选歌词按歌名、歌手、专辑三项打分，命中率最高的胜出，不再只取搜索结果第一条；专辑从文件内嵌标签读，歌名权重最高，歌手名是频道名时也不否决</li>
       <li>歌词打分加入文件名：文件名常含真实歌手和专辑，候选的歌名/歌手/专辑出现在本地文件名、歌手、专辑里（任意位置）都加分，两者都命中时分最高</li>
+      <li>歌词专辑匹配改双字重叠：专辑名常调换词序（“美人制造 电视剧原声带”对“电视剧《美人制造》原声带”），精确/包含都判不上；改算共享双字片段，≥4 个加 2 分、≥2 个加 1 分；同名多版本打平手时靠专辑分出胜负（张杰在 lrclib 里登记为 Jason Zhang，中文名对不上，全靠专辑）</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -1197,6 +1198,17 @@ function readEmbedded(fileUrl, cb) {
     });
   } catch (e) { cb({}); }
 }
+/* Count shared 2-char chunks between two normalized strings. Used for
+   album matching where word order differs (CJK has no spaces, so
+   word-splitting doesn't work, but shared bigrams do). */
+function bigramOverlap(a, b) {
+  if (!a || !b || a.length < 2 || b.length < 2) return 0;
+  var set = {};
+  for (var i = 0; i + 1 < a.length; i++) set[a.slice(i, i + 2)] = 1;
+  var n = 0;
+  for (var j = 0; j + 1 < b.length; j++) if (set[b.slice(j, j + 2)]) n++;
+  return n;
+}
 /* Online lyrics: exact match first, then scored search. Candidates are
    ranked by how well they match the track name, artist AND album. The
    local filename is part of the match too — many filenames embed the
@@ -1220,6 +1232,16 @@ function fetchLyricsOnline(artist, title, album, filename, cb) {
     else if (wantA && cA && (cA.indexOf(wantA) >= 0 || wantA.indexOf(cA) >= 0)) s += 1;
     if (wantAl && cAl === wantAl) s += 2;
     else if (wantAl && cAl && (cAl.indexOf(wantAl) >= 0 || wantAl.indexOf(cAl) >= 0)) s += 1;
+    /* Album token overlap: word order often differs ("美人制造 电视剧
+       原声带" vs "电视剧《美人制造》原声带 - Single"), so exact /
+       contains fails. Shared 2-char chunks catch it — and they also
+       break ties when the artist name is in another language (张杰 vs
+       "Jason Zhang" in lrclib) and several same-title songs tie. */
+    if (wantAl && cAl) {
+      var ov = bigramOverlap(wantAl, cAl);
+      if (ov >= 4) s += 2;
+      else if (ov >= 2) s += 1;
+    }
     /* Filename cross-match: the candidate's track / artist / album
        appearing in the local filename is strong evidence, because
        filenames often carry the real artist and album. */
@@ -1409,7 +1431,7 @@ function bgmRefreshCoverLyrics(force) {
     } else if (lyricsSource === 'local') {
       setLyrics(null);
     } else {
-      var lk = 'bgm-lyr:online3:' + normStr(artist) + '|' + normStr(title) + '|' + normStr(album);
+      var lk = 'bgm-lyr:online4:' + normStr(artist) + '|' + normStr(title) + '|' + normStr(album);
       var lcached = force ? null : lsGet(lk);
       if (lcached !== null && lcached !== undefined) {
         setLyrics(lcached === '∅' ? null : lcached);
