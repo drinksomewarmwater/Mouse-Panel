@@ -174,7 +174,8 @@
   #servers-gear-btn { font-size: 16px; padding: 8px 12px !important; }
   /* --- BGM expand bar: rotates/slides down from the button --- */
   .bgm-wrap { position: relative; display: inline-flex; }
-  .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; display: flex; flex-wrap: wrap; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
+  .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; display: flex; flex-direction: column; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
+  .bgm-bar-row { display: flex; justify-content: center; gap: 6px; }
   @media (hover: hover) {
     .bgm-wrap:hover .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
   }
@@ -184,7 +185,7 @@
   /* --- BGM track name inside the expand bar: scrolls (marquee) when
      too long for the fixed bar width; stays still when it fits. The
      text is duplicated by JS so translateX(-50%) loops seamlessly. --- */
-  .bgm-cover { flex-basis: 100%; display: flex; align-items: center; min-width: 0; margin-bottom: 2px; }
+  .bgm-cover { display: flex; align-items: center; min-width: 0; }
   .bgm-cover-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: #e6e6e6; }
   .bgm-cover-name span { display: inline-block; white-space: nowrap; will-change: transform; }
   .bgm-cover-name.scrolling span { animation: bgm-marquee 12s linear infinite; }
@@ -241,7 +242,7 @@
   @media (max-width: 640px) {
     .mobile-meta .bgm-bar { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; transform-origin: bottom center; transform: translateY(8px) rotateX(30deg); }
     .mobile-meta .bgm-wrap.open .bgm-bar { transform: translateY(0) rotateX(0); }
-    .bgm-bar { flex-wrap: wrap; width: 320px; max-width: calc(100vw - 32px); }
+    .bgm-bar { width: 320px; max-width: calc(100vw - 32px); }
     .bgm-bar-btn { min-height: 40px; padding: 10px 12px; }
     .srv-name-input { min-width: 0; }
   }
@@ -296,7 +297,7 @@
 <div class="wrap hidden" id="app-view">
   <div class="topbar">
     <h1><span id="panel-name">鼠鼠面板</span></h1>
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
   </div>
   <div class="sub">
     <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
@@ -544,7 +545,7 @@
   <div class="hint">节点链接等同于密码，请勿转发。面板由账号登录保护。「轮换凭证」会立刻作废旧链接，只认新链接，点之前确认各设备都方便换新链接。移动鼠标扰动背景波纹，点击页面任意处激起水花。</div>
 
   <div class="mobile-meta">
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
     <div class="sub">
       <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
     </div>
@@ -660,6 +661,7 @@
       <li>修歌单串号：登录时重拉歌单、打开播放列表时重拉、上传成功立即显示新歌；之前切换账号后内存里的歌单没更新，管理员会看到普通用户的歌</li>
       <li>悬浮歌词与歌词功能已移除：在线识别对同名歌曲经常认错，不好用；音乐播放与播放列表不受影响</li>
       <li>音乐栏封面已移除；音乐栏改固定宽度 320px，歌名太长时横向滚动循环显示，能放下时不动</li>
+      <li>音乐栏改两行居中排版：上一行 上一首 / 播放·暂停 / 下一首，下一行 播放模式 / 播放列表；歌名仍左对齐，宽度不变</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
