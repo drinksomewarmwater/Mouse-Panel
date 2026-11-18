@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.4
+# Mouse Panel 🐹 V1.1.5
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -333,6 +333,17 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.5 (2026-11-18)
+
+**修复**
+
+- 用户页链接加载失败：V1.1.4 改本地 HY2 链接时留了一个格式化参数错误，导致用户链接接口直接报错；已修复。
+- 用户页服务器名显示为 Debian-2/Debian-1：服务器名只从链接接口取，链接一失败名字就回落到默认值；现流量接口也返回服务器名，名字不再依赖链接接口。
+
+**变更**
+
+- 节点名统一为 VPS 名 + 协议名：本地与远程的 HY2、VLESS 链接备注统一为 `【推荐】Debian-KR-Hy2`、`【推荐】Debian-US-Vless` 这类格式，跟服务器显示名走。
 
 ### V1.1.4 (2026-11-18)
 
