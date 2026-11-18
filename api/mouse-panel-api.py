@@ -1179,6 +1179,30 @@ def get_user_by_sub_token(token):
     return dict(row) if row else None
 
 
+def regenerate_sub_token(username):
+    """Force a fresh subscription token for a user, so the OLD
+    subscription URL stops working. Called whenever the user's node
+    credentials change (rotation, password reset/change, first-time
+    setup). Returns the new token, or None when the user does not
+    exist. A user who never had a token gets one now; that is harmless
+    (the token is only useful once the admin copies the link)."""
+    ensure_user_columns()
+    conn = db()
+    row = conn.execute(
+        "SELECT username FROM users WHERE username=?", (username,)
+    ).fetchone()
+    if row is None:
+        conn.close()
+        return None
+    token = secrets.token_hex(16)
+    conn.execute(
+        "UPDATE users SET sub_token=? WHERE username=?", (token, username)
+    )
+    conn.commit()
+    conn.close()
+    return token
+
+
 def subscription_links(username):
     """All of one user's node links (HY2 + VLESS, both servers). The
     admin has no per-user VLESS UUID/port, so the admin's links come
@@ -1318,6 +1342,13 @@ def rotate_vless():
     new_link = re.sub(r"(vless://)[^@]+(@)", r"\g<1>" + new_uuid + r"\g<2>", old, count=1)
     links["vless"] = new_link
     save_links(links)
+    # The admin's VLESS credential changed, so the old subscription URL
+    # must stop working. A token-write failure must not mask a rotation
+    # that already succeeded, so it is only logged.
+    try:
+        regenerate_sub_token("admin")
+    except Exception as e:
+        log.error("rotate_vless: sub_token regen failed: %s", e)
     return new_link
 
 
@@ -1331,7 +1362,9 @@ def rotate_admin_hy2():
     link yet, so they are left untouched."""
     new_pw = secrets.token_hex(16)
     conn = db()
-    conn.execute("UPDATE users SET hy2_password=? WHERE username='admin'", (new_pw,))
+    conn.execute("UPDATE users SET hy2_password=?, sub_token=?"
+                 " WHERE username='admin'",
+                 (new_pw, secrets.token_hex(16)))
     users = conn.execute(
         "SELECT username FROM users WHERE role='user' AND pw_set=1"
     ).fetchall()
@@ -1339,9 +1372,9 @@ def rotate_admin_hy2():
     for (username,) in users:
         user_pw = secrets.token_hex(16)
         conn.execute(
-            "UPDATE users SET hy2_password=?, enabled=0, disabled_reason='rotated'"
-            " WHERE username=?",
-            (user_pw, username),
+            "UPDATE users SET hy2_password=?, enabled=0, disabled_reason='rotated',"
+            " sub_token=? WHERE username=?",
+            (user_pw, secrets.token_hex(16), username),
         )
         count += 1
     conn.commit()
@@ -1435,6 +1468,12 @@ def remote_rotate_vless(server):
     d = json.loads(out)
     if not d.get("ok"):
         raise RuntimeError("remote rotate failed: %s" % d.get("error"))
+    # The admin's remote VLESS credential changed, so the old
+    # subscription URL must stop working (same reason as rotate_vless).
+    try:
+        regenerate_sub_token("admin")
+    except Exception as e:
+        log.error("remote_rotate_vless: sub_token regen failed: %s", e)
     return remote_links(server)["vless"]
 
 
@@ -1926,8 +1965,9 @@ class Handler(BaseHTTPRequestHandler):
                     pw_hash = bcrypt.hashpw(new.encode(), bcrypt.gensalt()).decode()
                     conn = db()
                     conn.execute(
-                        "UPDATE users SET pw_hash=?, hy2_password=?, pw_set=1 WHERE username=?",
-                        (pw_hash, new, me["username"]),
+                        "UPDATE users SET pw_hash=?, hy2_password=?, sub_token=?,"
+                        " pw_set=1 WHERE username=?",
+                        (pw_hash, new, secrets.token_hex(16), me["username"]),
                     )
                     conn.commit()
                     conn.close()
@@ -1971,8 +2011,9 @@ class Handler(BaseHTTPRequestHandler):
                     conn = db()
                     conn.execute(
                         "UPDATE users SET pw_hash=?, hy2_password=?, pw_set=1, enabled=1,"
-                        " disabled_reason=NULL, setup_token_hash=NULL WHERE username=?",
-                        (pw_hash, password, username),
+                        " disabled_reason=NULL, setup_token_hash=NULL, sub_token=?"
+                        " WHERE username=?",
+                        (pw_hash, password, secrets.token_hex(16), username),
                     )
                     conn.commit()
                     conn.close()
@@ -2431,15 +2472,15 @@ class Handler(BaseHTTPRequestHandler):
                         if user.get("disabled_reason") == "pending_setup":
                             conn.execute(
                                 "UPDATE users SET pw_hash=?, hy2_password=?, pw_set=1,"
-                                " enabled=1, disabled_reason=NULL, setup_token_hash=NULL"
-                                " WHERE username=?",
-                                (pw_hash, password, username),
+                                " enabled=1, disabled_reason=NULL, setup_token_hash=NULL,"
+                                " sub_token=? WHERE username=?",
+                                (pw_hash, password, secrets.token_hex(16), username),
                             )
                         else:
                             conn.execute(
-                                "UPDATE users SET pw_hash=?, hy2_password=?, pw_set=1"
-                                " WHERE username=?",
-                                (pw_hash, password, username),
+                                "UPDATE users SET pw_hash=?, hy2_password=?, pw_set=1,"
+                                " sub_token=? WHERE username=?",
+                                (pw_hash, password, secrets.token_hex(16), username),
                             )
                         conn.commit()
                         if "allow_pw_change" in body:
