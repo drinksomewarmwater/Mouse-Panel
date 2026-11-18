@@ -1429,7 +1429,9 @@ def remote_read(server):
 
 def remote_vless_link(server, d):
     """Build the remote VLESS link from the agent's read output."""
-    domain = d.get("domain") or server.get("host", "")
+    # Punycode the server domain (same as HY2 links): a Chinese domain in
+    # the link breaks some clients' handshake, cf. the HY2 SNI lesson.
+    domain = to_idna(d.get("domain") or server.get("host", ""))
     port = d.get("vless_port") or 443
     name = server.get("name") or "远程"
     if d.get("vless_security") == "reality":
