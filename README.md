@@ -1,5 +1,7 @@
 # Mouse Panel 🐹 V1.1.3
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
+
 *本项目使用 [Meta Muse](https://muse.ai) 制作。*
 
 一个自托管的节点面板：一台 VPS 上同时跑 **sing-box（VLESS + Reality）** 与 **Hysteria 2**，再加一个网页面板管理它们——看流量、复制链接、扫码导入、轮换凭证、给别人开账号、放背景音乐，都在一个页面里完成。
