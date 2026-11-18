@@ -6,7 +6,6 @@
 <title>鼠鼠面板</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261114">
 <script src="qrcode.min.js"></script>
-<script src="vendor/jsmediatags.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f1419; color: #e6e6e6; }
@@ -175,42 +174,21 @@
   #servers-gear-btn { font-size: 16px; padding: 8px 12px !important; }
   /* --- BGM expand bar: rotates/slides down from the button --- */
   .bgm-wrap { position: relative; display: inline-flex; }
-  .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-wrap: wrap; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
+  .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; display: flex; flex-wrap: wrap; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
   @media (hover: hover) {
     .bgm-wrap:hover .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
   }
   .bgm-wrap.open .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
   .bgm-bar-btn { background: transparent; border: 1px solid #2a3444; color: #e6e6e6; padding: 8px 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
   .bgm-bar-btn:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
-  /* --- BGM cover inside the expand bar: it shows with the bar (hover
-     on desktop, tap on touch) --- */
-  .bgm-cover { flex-basis: 100%; display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 2px; }
-  .bgm-cover-img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-  .bgm-cover-ph { width: 56px; height: 56px; border-radius: 8px; background: #0b0f14; border: 1px solid #2a3444; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
-  .bgm-cover-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #e6e6e6; }
-  /* --- floating lyrics panel: persistent while enabled (default on) --- */
-  #lyrics-float { position: fixed; right: 16px; bottom: 16px; width: 320px; max-width: calc(100vw - 32px); max-height: 48vh; background: rgba(26, 34, 48, 0.88); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); z-index: 30; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(6px); touch-action: none; cursor: grab; }
-  #lyrics-float.dragging { cursor: grabbing; }
-  #lyrics-float .lyr-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; font-size: 13px; color: #a5d6ff; }
-  #lyrics-float .lyr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #lyrics-float .lyr-close { background: transparent; border: none; color: #8b98a5; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
-  #lyrics-float .lyr-close:hover { color: #fff; }
-  #lyrics-lines { overflow-y: auto; scrollbar-width: none; padding: 0 12px 12px; font-size: 14px; line-height: 2; color: #8b98a5; max-height: 28px; transition: max-height .35s cubic-bezier(0.4, 0, 0.2, 1); }
-  #lyrics-lines::-webkit-scrollbar { display: none; }
-  /* lyrics cover: grows + fades in with the panel (display can't animate,
-     so it uses max-height + opacity like the lines, not display:none). */
-  .lyr-cover { max-height: 0; opacity: 0; overflow: hidden; padding: 0 12px; transition: max-height .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .3s ease, padding .3s ease; }
-  #lyrics-float.expanded .lyr-cover { max-height: 64px; opacity: 1; padding: 0 12px 8px; }
-  /* floating lyrics: 1 line by default; 5 lines when pinned (click) or hovered (mouse only) */
-  #lyrics-float.expanded #lyrics-lines { max-height: 140px; }
-  @media (hover: hover) {
-    #lyrics-float:hover #lyrics-lines { max-height: 140px; }
-    #lyrics-float:hover .lyr-cover { max-height: 64px; opacity: 1; padding: 0 12px 8px; }
-  }
-  .lyr-line { transition: color .2s; }
-  .lyr-line.active { color: #e6e6e6; font-weight: 600; }
-  .lyr-empty { color: #8b98a5; text-align: center; padding: 18px 0; }
-  .lyr-select { width: 100%; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  /* --- BGM track name inside the expand bar: scrolls (marquee) when
+     too long for the fixed bar width; stays still when it fits. The
+     text is duplicated by JS so translateX(-50%) loops seamlessly. --- */
+  .bgm-cover { flex-basis: 100%; display: flex; align-items: center; min-width: 0; margin-bottom: 2px; }
+  .bgm-cover-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: #e6e6e6; }
+  .bgm-cover-name span { display: inline-block; white-space: nowrap; will-change: transform; }
+  .bgm-cover-name.scrolling span { animation: bgm-marquee 12s linear infinite; }
+  @keyframes bgm-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
   /* --- log export: custom range reveal (same .25s ease as .bgm-bar/.toast) --- */
   .log-custom-wrap { overflow: hidden; max-height: 0; opacity: 0; transform: translateY(-6px); visibility: hidden; transition: max-height .25s ease, opacity .25s ease, transform .25s ease, visibility .25s ease; }
   .log-custom-wrap.open { max-height: 170px; opacity: 1; transform: translateY(0); visibility: visible; }
@@ -263,12 +241,8 @@
   @media (max-width: 640px) {
     .mobile-meta .bgm-bar { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; transform-origin: bottom center; transform: translateY(8px) rotateX(30deg); }
     .mobile-meta .bgm-wrap.open .bgm-bar { transform: translateY(0) rotateX(0); }
-    .bgm-bar { flex-wrap: wrap; max-width: calc(100vw - 32px); }
+    .bgm-bar { flex-wrap: wrap; width: 320px; max-width: calc(100vw - 32px); }
     .bgm-bar-btn { min-height: 40px; padding: 10px 12px; }
-    /* floating lyrics sit above the bottom music bar on mobile; default 1 line
-       so it never covers the music button; tap toggles the pinned 5-line view,
-       and it grows upward from the bottom anchor, never down over the bar */
-    #lyrics-float { left: 12px; right: 12px; bottom: 120px; width: auto; max-height: 38vh; }
     .srv-name-input { min-width: 0; }
   }
   .hidden { display: none !important; }
@@ -322,7 +296,7 @@
 <div class="wrap hidden" id="app-view">
   <div class="topbar">
     <h1><span id="panel-name">鼠鼠面板</span></h1>
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><img class="bgm-cover-img hidden" alt=""><div class="bgm-cover-ph">🎵</div><div class="bgm-cover-name"></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-lyrics" title="歌词设置">📝 歌词设置</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
   </div>
   <div class="sub">
     <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
@@ -570,7 +544,7 @@
   <div class="hint">节点链接等同于密码，请勿转发。面板由账号登录保护。「轮换凭证」会立刻作废旧链接，只认新链接，点之前确认各设备都方便换新链接。移动鼠标扰动背景波纹，点击页面任意处激起水花。</div>
 
   <div class="mobile-meta">
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><img class="bgm-cover-img hidden" alt=""><div class="bgm-cover-ph">🎵</div><div class="bgm-cover-name"></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-lyrics" title="歌词设置">📝 歌词设置</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
     <div class="sub">
       <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
     </div>
@@ -684,30 +658,12 @@
       <li>音乐歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录；普通用户也能自己上传、删除、排序歌曲</li>
       <li>悬浮歌词展开动画改顺滑：封面改用高度+淡入过渡（不再是 display 瞬切），歌词行改用 .35s 标准缓动</li>
       <li>修歌单串号：登录时重拉歌单、打开播放列表时重拉、上传成功立即显示新歌；之前切换账号后内存里的歌单没更新，管理员会看到普通用户的歌</li>
+      <li>悬浮歌词与歌词功能已移除：在线识别对同名歌曲经常认错，不好用；音乐播放与播放列表不受影响</li>
+      <li>音乐栏封面已移除；音乐栏改固定宽度 320px，歌名太长时横向滚动循环显示，能放下时不动</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
       <button id="version-modal-close">关闭</button>
-    </div>
-  </div>
-</div>
-
-<div class="confirm-modal" id="lyrics-settings-modal">
-  <div class="confirm-modal-card" id="lyrics-settings-modal-card" style="width:400px;">
-    <div class="confirm-modal-title">歌词设置</div>
-    <div class="field">
-      <div><label style="display:flex;align-items:center;gap:8px;margin:0;color:#c7d0db;font-size:14px;"><input type="checkbox" id="lyr-set-enabled" style="width:18px;height:18px;accent-color:#1d9bf0;flex-shrink:0;">悬浮歌词（常驻显示）</label></div>
-    </div>
-    <div class="field">
-      <div><label>识别源</label><select id="lyr-set-source" class="lyr-select"><option value="online">在线识别</option><option value="local">仅本地（只读文件内嵌）</option></select></div>
-    </div>
-    <div class="field">
-      <div><label>透明度（<span id="lyr-set-opacity-val">12%</span>）</label><input type="range" id="lyr-set-opacity" min="0" max="100" step="1" value="12" style="width:100%;accent-color:#1d9bf0;"></div>
-    </div>
-    <div class="meta" style="margin-bottom:12px;">歌词优先读文件内嵌；文件里没有时按识别源检索。切源后会重新识别当前歌曲。透明度只改悬浮歌词面板的背景深浅，歌词文字不受影响。</div>
-    <div class="confirm-modal-btns">
-      <button class="ghost" id="lyr-set-refetch">重新识别当前歌曲</button>
-      <button id="lyr-set-close">关闭</button>
     </div>
   </div>
 </div>
@@ -814,11 +770,6 @@
 
 <audio id="bgm" preload="auto"></audio>
 
-<div id="lyrics-float" class="hidden">
-  <div class="lyr-head"><span class="lyr-title" id="lyrics-title">背景音乐</span><button class="lyr-close" id="lyrics-close" title="关闭悬浮歌词">✕</button></div>
-  <div class="lyr-cover"><img class="bgm-cover-img hidden" alt=""><div class="bgm-cover-ph">🎵</div></div>
-  <div id="lyrics-lines"><div class="lyr-empty">暂无歌词</div></div>
-</div>
 
 <script>
 var LINKS = null;
@@ -875,7 +826,6 @@ function bgmPosVol() {
 }
 function bgmTick() {
   if (bgm.paused && !bgmFadingOut) return;
-  syncLyricsLine();
   var target = bgmFadingOut ? 0 : bgmPosVol();
   var cur = bgm.volume;
   var diff = target - cur;
@@ -907,6 +857,15 @@ function bgmToggle() {
     bgmSetUserPaused(false);
     return;
   }
+  /* Safety net: if no track was ever loaded (e.g. the page-load
+     loadPlaylist ran before ME was known, or nothing was loaded yet),
+     load the first track now and play it instead of calling play()
+     on an empty/broken source. */
+  if ((!bgm.src || !bgmCurrentId || !bgmTrackById(bgmCurrentId)) && PLAYLIST.length) {
+    bgmSetUserPaused(false);
+    bgmLoad(PLAYLIST[0].id, true);
+    return;
+  }
   if (bgm.paused) { bgmSetUserPaused(false); bgm.play().catch(function () {}); }
   else {
     /* Fade out first, pause when the volume reaches 0. */
@@ -929,7 +888,7 @@ function bgmLoad(id, autoplay) {
   bgm.src = musicUrl(t.file);
   bgm.load();
   bgmUpdateTitle();
-  bgmRefreshCoverLyrics();
+  updateTrackName();
   if (autoplay) bgm.play().catch(function () {});
   return true;
 }
@@ -1066,7 +1025,7 @@ function loadPlaylist() {
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function (d) {
       PLAYLIST = d.tracks || [];
-      if (PLAYLIST.length && !bgmTrackById(bgmCurrentId)) {
+      if (PLAYLIST.length && ME && !bgmTrackById(bgmCurrentId)) {
         bgmLoad(PLAYLIST[0].id, false);
         bgmTryAutoplay();
       }
@@ -1083,525 +1042,32 @@ loadPlaylist();
 bgmUpdateModeBtns();
 bgmSetState(false);
 
-/* ---- floating cover + scrolling lyrics (Phase 1) ----
-   Cover lives inside the bgm-bar, so it only shows when the bar does
-   (hover on desktop, tap on touch). Lyrics live in a separate floating
-   panel, persistent while enabled (default on). Priority: embedded
-   tags in the file (jsmediatags: APIC cover + USLT lyrics) first, then
-   the configured online source — then nothing (placeholder / 暂无歌词). API results are cached in
-   localStorage per artist+title; the cache never leaves the browser. */
-var lyricsEnabled = true;
-try { lyricsEnabled = localStorage.getItem('bgm-lyrics-enabled') !== '0'; } catch (e) {}
-var lyricsSource = 'online';
-try { lyricsSource = localStorage.getItem('bgm-lyrics-source') || 'online'; } catch (e) {}
-if (['online', 'local'].indexOf(lyricsSource) < 0) lyricsSource = 'online';
-/* 悬浮歌词面板背景透明度（0–100，越高越透明；默认 12，对应原来写死的 rgba 0.88）。
-   只改面板背景深浅，歌词文字不受影响；存在 localStorage。 */
-var lyricsTransparency = 12;
-try {
-  var _lt = parseInt(localStorage.getItem('bgm-lyrics-transparency'), 10);
-  if (isNaN(_lt)) { // 兼容刚上线的旧版：以前存的是不透明度，透明度 = 100 - 不透明度
-    var _lo = parseInt(localStorage.getItem('bgm-lyrics-opacity'), 10);
-    if (!isNaN(_lo)) _lt = 100 - _lo;
-  }
-  if (!isNaN(_lt) && _lt >= 0 && _lt <= 100) lyricsTransparency = _lt;
-} catch (e) {}
-function applyLyricsOpacity() {
-  var f = document.getElementById('lyrics-float');
-  if (f) f.style.background = 'rgba(26, 34, 48, ' + ((100 - lyricsTransparency) / 100) + ')';
-}
-var curLyricsReq = 0;
-var lyricLines = [];
-var lyricSynced = false;
-var lyricActiveIdx = -1;
-var lyrUserScrollAt = 0;
-function normStr(s) {
-  return String(s || '').toLowerCase().replace(/[\s\p{P}]/gu, '');
-}
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-function curTrackMeta() {
-  var t = bgmTrackById(bgmCurrentId);
-  if (!t) return null;
-  var artist = (t.artist || '').trim();
-  var title = (t.name || '').trim();
-  if (!artist || !title) {
-    var base = (t.file || '').replace(/\.[^.]+$/, '');
-    var m = base.match(/^(.+?)\s*[-–—]\s*(.+)$/);
-    if (m) { if (!artist) artist = m[1].trim(); if (!title) title = m[2].trim(); }
-  }
-  if (!title) title = (t.file || '').replace(/\.[^.]+$/, '');
-  return { artist: artist, title: title, file: t.file };
-}
-/* Parse LRC text into [{t, text}]. Timestamped lines give synced
-   scrolling; plain lines are shown as a static list. Metadata tags
-   ([ti:], [ar:], [offset:], …) and the trailing base64 blob are skipped. */
-function parseLrc(text) {
-  var lines = [];
-  var synced = false;
-  String(text || '').split(/\r?\n/).forEach(function (raw) {
-    var line = raw.replace(/^\uFEFF/, '').trim();
-    if (!line) return;
-    if (/^\[(ti|ar|al|by|offset|ver|kuwo|awlrc)[^\]]*\]/i.test(line)) return;
-    var times = [];
-    var txt = line.replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g, function (_, m, s, f) {
-      times.push((+m) * 60 + (+s) + (f ? (+('0.' + f)) : 0));
-      return '';
-    }).trim();
-    if (times.length) {
-      synced = true;
-      times.forEach(function (sec) { lines.push({ t: sec, text: txt }); });
-    } else if (!/^\[[^\]]+\]/.test(line)) {
-      lines.push({ t: -1, text: line });
-    }
-  });
-  lines.sort(function (a, b) { return a.t - b.t; });
-  if (synced) lines = lines.filter(function (ln) { return ln.t >= 0; });
-  return { lines: lines, synced: synced };
-}
-/* Read embedded cover (APIC) + lyrics (USLT) + tags from the audio file.
-   jsmediatags fetches only the tag bytes (range request). */
-function readEmbedded(fileUrl, cb) {
-  if (typeof jsmediatags === 'undefined') { cb({}); return; }
-  /* jsmediatags only accepts absolute URLs (its URL reader requires a
-     scheme like http://); a relative path finds no reader. */
-  var absUrl = fileUrl;
-  try { absUrl = new URL(fileUrl, window.location.href).href; } catch (e) {}
-  try {
-    jsmediatags.read(absUrl, {
-      onSuccess: function (tag) {
-        var tg = tag.tags || {};
-        var out = {};
-        if (tg.picture && tg.picture.data && tg.picture.data.length) {
-          try {
-            var bytes = tg.picture.data;
-            var b64 = '';
-            var CH = 0x8000;
-            for (var i = 0; i < bytes.length; i += CH) {
-              b64 += String.fromCharCode.apply(null, bytes.slice(i, i + CH));
-            }
-            out.coverUrl = 'data:' + (tg.picture.format || 'image/jpeg') + ';base64,' + btoa(b64);
-          } catch (e) {}
-        }
-        /* USLT comes back as {language, descriptor, lyrics} — take the
-           text field, not String() of the object. */
-        if (tg.lyrics) {
-          var ly = tg.lyrics;
-          out.lyricsText = (ly && typeof ly === 'object') ? (ly.lyrics || '') : String(ly);
-        }
-        if (tg.title) out.title = String(tg.title);
-        if (tg.artist) out.artist = String(tg.artist);
-        if (tg.album) out.album = String(tg.album);
-        cb(out);
-      },
-      onError: function () { cb({}); }
-    });
-  } catch (e) { cb({}); }
-}
-/* Count shared 2-char chunks between two normalized strings. Used for
-   album matching where word order differs (CJK has no spaces, so
-   word-splitting doesn't work, but shared bigrams do). */
-function bigramOverlap(a, b) {
-  if (!a || !b || a.length < 2 || b.length < 2) return 0;
-  var set = {};
-  for (var i = 0; i + 1 < a.length; i++) set[a.slice(i, i + 2)] = 1;
-  var n = 0;
-  for (var j = 0; j + 1 < b.length; j++) if (set[b.slice(j, j + 2)]) n++;
-  return n;
-}
-/* Online lyrics: exact match first, then scored search. Candidates are
-   ranked by how well they match the track name, artist AND album. The
-   local filename is part of the match too — many filenames embed the
-   artist and album ("张静峥 - 戒网.mp3"), so a candidate whose artist
-   AND track name both appear somewhere in the local filename / artist /
-   album (in any position) is the strongest hit. */
-function fetchLyricsOnline(artist, title, album, filename, cb) {
-  var base = 'https://lrclib.net/api';
-  var q = '?artist_name=' + encodeURIComponent(artist) + '&track_name=' + encodeURIComponent(title);
-  function scoreCandidate(c) {
-    var wantT = normStr(title), wantA = normStr(artist), wantAl = normStr(album);
-    var cT = normStr(c.trackName), cA = normStr(c.artistName), cAl = normStr(c.albumName);
-    /* One combined local haystack: filename + artist + album. The
-       candidate's artist / track / album just need to appear somewhere
-       in it, in any position. */
-    var hay = normStr((filename || '') + ' ' + (artist || '') + ' ' + (album || ''));
-    var s = 0, trackHit = false;
-    if (wantT && cT === wantT) { s += 4; trackHit = true; }
-    else if (wantT && cT && (cT.indexOf(wantT) >= 0 || wantT.indexOf(cT) >= 0)) { s += 2; trackHit = true; }
-    if (wantA && cA === wantA) s += 3;
-    else if (wantA && cA && (cA.indexOf(wantA) >= 0 || wantA.indexOf(cA) >= 0)) s += 1;
-    if (wantAl && cAl === wantAl) s += 2;
-    else if (wantAl && cAl && (cAl.indexOf(wantAl) >= 0 || wantAl.indexOf(cAl) >= 0)) s += 1;
-    /* Album token overlap: word order often differs ("美人制造 电视剧
-       原声带" vs "电视剧《美人制造》原声带 - Single"), so exact /
-       contains fails. Shared 2-char chunks catch it — and they also
-       break ties when the artist name is in another language (张杰 vs
-       "Jason Zhang" in lrclib) and several same-title songs tie. */
-    if (wantAl && cAl) {
-      var ov = bigramOverlap(wantAl, cAl);
-      if (ov >= 4) s += 2;
-      else if (ov >= 2) s += 1;
-    }
-    /* Filename cross-match: the candidate's track / artist / album
-       appearing in the local filename is strong evidence, because
-       filenames often carry the real artist and album. */
-    if (cT && hay.indexOf(cT) >= 0) { s += 2; trackHit = true; }
-    if (cA && hay.indexOf(cA) >= 0) s += 2;
-    if (cAl && hay.indexOf(cAl) >= 0) s += 1;
-    if (c.syncedLyrics) s += 0.5;
-    return { score: s, trackHit: trackHit };
-  }
-  function pickFrom(arr) {
-    if (!arr || !arr.length) return null;
-    var best = null, bestScore = -1;
-    for (var i = 0; i < arr.length; i++) {
-      var it = arr[i];
-      if (!(it.syncedLyrics || it.plainLyrics)) continue;
-      var sc = scoreCandidate(it);
-      if (!sc.trackHit) continue;
-      if (sc.score > bestScore) { bestScore = sc.score; best = it; }
-    }
-    return best;
-  }
-  function searchOnlyTitle() {
-    // Fuzzy fallback: drop the artist entirely. Filenames often carry a
-    // mangled artist (e.g. "村西_馨悦_WhiteRainbow_"), and lrclib's
-    // artist filter then returns nothing even though the track exists.
-    // Scoring still applies, so the best-matching version wins.
-    fetch(base + '/search?track_name=' + encodeURIComponent(title))
-      .then(function (r) { return r.json(); })
-      .then(function (arr) {
-        var pick = pickFrom(arr);
-        cb(pick ? (pick.syncedLyrics || pick.plainLyrics || null) : null);
-      })
-      .catch(function () { cb(null); });
-  }
-  fetch(base + '/get' + q).then(function (r) {
-    if (!r.ok) throw new Error('not found');
-    return r.json();
-  }).then(function (d) {
-    cb((d && (d.syncedLyrics || d.plainLyrics)) || null);
-  }).catch(function () {
-    fetch(base + '/search?track_name=' + encodeURIComponent(title) + (artist ? '&artist_name=' + encodeURIComponent(artist) : '') + (album ? '&album_name=' + encodeURIComponent(album) : ''))
-      .then(function (r) { return r.json(); })
-      .then(function (arr) {
-        var pick = pickFrom(arr);
-        if (pick) cb(pick.syncedLyrics || pick.plainLyrics || null);
-        else searchOnlyTitle();
-      })
-      .catch(function () { searchOnlyTitle(); });
-  });
-}
-/* Online cover: fuzzy search, but only accept an exact trackName match
-   (and an artist match when we know the artist) — a wrong cover is
-   worse than no cover. Artwork is upscaled from 100px to 600px. */
-function fetchCoverOnline(artist, title, cb) {
-  var q = 'https://itunes.apple.com/search?term=' + encodeURIComponent((artist ? artist + ' ' : '') + title) + '&media=music&entity=song&limit=5';
-  fetch(q).then(function (r) { return r.json(); }).then(function (d) {
-    var res = d.results || [];
-    var wantT = normStr(title), wantA = normStr(artist);
-    var hit = null;
-    for (var i = 0; i < res.length; i++) {
-      var r = res[i];
-      if (normStr(r.trackName) !== wantT) continue;
-      var a = normStr(r.artistName);
-      if (!wantA || a === wantA || a.indexOf(wantA) >= 0 || wantA.indexOf(a) >= 0) { hit = r; break; }
-    }
-    cb(hit && hit.artworkUrl100 ? hit.artworkUrl100.replace('100x100', '600x600') : null);
-  }).catch(function () { cb(null); });
-}
-function setCover(url) {
-  document.querySelectorAll('.bgm-cover-img').forEach(function (img) {
-    if (url) { img.src = url; img.classList.remove('hidden'); }
-    else { img.removeAttribute('src'); img.classList.add('hidden'); }
-  });
-  document.querySelectorAll('.bgm-cover-ph').forEach(function (ph) {
-    ph.classList.toggle('hidden', !!url);
-  });
-}
-/* A failed cover URL (e.g. a dead link) falls back to the
-   placeholder instead of showing a broken image. */
-document.querySelectorAll('.bgm-cover-img').forEach(function (img) {
-  img.addEventListener('error', function () {
-    img.classList.add('hidden');
-    var ph = img.parentElement ? img.parentElement.querySelector('.bgm-cover-ph') : null;
-    if (ph) ph.classList.remove('hidden');
-  });
-});
+/* Track name in the music bar: if the name is too long for the fixed
+   bar width, it scrolls left in a loop (marquee); if it fits, it
+   stays still. The text is duplicated so the loop is seamless
+   (translateX -50% = exactly one copy). The bar is visibility:hidden
+   (not display:none) when closed, so clientWidth is measurable even
+   before it is shown. */
 function updateTrackName() {
   var t = bgmTrackById(bgmCurrentId);
   var label = t ? (t.name + (t.artist ? ' - ' + t.artist : '')) : '背景音乐';
-  document.querySelectorAll('.bgm-cover-name').forEach(function (el) { el.textContent = label; });
-  var lt = document.getElementById('lyrics-title');
-  if (lt) lt.textContent = label;
-}
-function setLyrics(text) {
-  var parsed = parseLrc(text || '');
-  lyricLines = parsed.lines;
-  lyricSynced = parsed.synced;
-  lyricActiveIdx = -1;
-  var el = document.getElementById('lyrics-lines');
-  if (!el) return;
-  if (!lyricLines.length) {
-    el.innerHTML = '<div class="lyr-empty">暂无歌词</div>';
-    return;
-  }
-  var html = '';
-  lyricLines.forEach(function (ln, i) {
-    html += '<div class="lyr-line" data-i="' + i + '">' + esc(ln.text || '　') + '</div>';
-  });
-  el.innerHTML = html;
-  syncLyricsLine();
-}
-function centerActiveLyric(instant) {
-  var box = document.getElementById('lyrics-lines');
-  if (!box) return;
-  var cur = box.querySelector('.lyr-line.active');
-  if (!cur) return;
-  /* If the user just scrolled manually, don't yank the view back for a
-     few seconds — let them read. Auto-centering resumes after 8s idle. */
-  if (!instant && lyrUserScrollAt && Date.now() - lyrUserScrollAt < 8000) return;
-  /* instant for expand/collapse re-centering (a smooth scroll would delay
-     the height transition); smooth only for the line change during playback */
-  cur.scrollIntoView({ block: 'center', behavior: instant ? 'auto' : 'smooth' });
-}
-function syncLyricsLine() {
-  if (!lyricSynced || !lyricLines.length) return;
-  var t = bgm.currentTime || 0;
-  var idx = -1;
-  for (var i = 0; i < lyricLines.length; i++) {
-    if (lyricLines[i].t <= t) idx = i; else break;
-  }
-  if (idx === lyricActiveIdx) return;
-  lyricActiveIdx = idx;
-  var box = document.getElementById('lyrics-lines');
-  if (!box) return;
-  var prev = box.querySelector('.lyr-line.active');
-  if (prev) prev.classList.remove('active');
-  if (idx >= 0) {
-    var cur = box.children[idx];
-    if (cur) {
-      cur.classList.add('active');
-      centerActiveLyric();
-    }
-  }
-}
-function applyLyricsVisibility() {
-  var el = document.getElementById('lyrics-float');
-  if (!el) return;
-  applyLyricsOpacity();
-  var appVisible = true;
-  var app = document.getElementById('app-view');
-  if (app) appVisible = !app.classList.contains('hidden');
-  el.classList.toggle('hidden', !lyricsEnabled || !appVisible);
-  if (lyricsEnabled && appVisible) lyrRestorePos();
-}
-/* Refresh cover + lyrics for the current track. force skips the cache
-   (used by 重新识别 and by switching source). */
-function bgmRefreshCoverLyrics(force) {
-  updateTrackName();
-  applyLyricsVisibility();
-  var meta = curTrackMeta();
-  if (!meta) { setCover(null); setLyrics(null); return; }
-  var reqId = ++curLyricsReq;
-  readEmbedded(musicUrl(meta.file), function (emb) {
-    if (reqId !== curLyricsReq) return;
-    var artist = emb.artist || meta.artist;
-    var title = emb.title || meta.title;
-    var album = emb.album || '';
-    if (emb.coverUrl) {
-      setCover(emb.coverUrl);
-    } else if (lyricsSource === 'local') {
-      setCover(null);
-    } else {
-      var ck = 'bgm-cov:' + normStr(artist) + '|' + normStr(title);
-      var cached = force ? null : lsGet(ck);
-      if (cached !== null && cached !== undefined) {
-        setCover(cached === '∅' ? null : cached);
-      } else {
-        fetchCoverOnline(artist, title, function (cu) {
-          if (reqId !== curLyricsReq) return;
-          lsSet(ck, cu || '∅');
-          setCover(cu);
-        });
-      }
-    }
-    if (emb.lyricsText) {
-      setLyrics(emb.lyricsText);
-    } else if (lyricsSource === 'local') {
-      setLyrics(null);
-    } else {
-      var lk = 'bgm-lyr:online4:' + normStr(artist) + '|' + normStr(title) + '|' + normStr(album);
-      var lcached = force ? null : lsGet(lk);
-      if (lcached !== null && lcached !== undefined) {
-        setLyrics(lcached === '∅' ? null : lcached);
-      } else {
-        fetchLyricsOnline(artist, title, album, meta.file || '', function (ltxt) {
-          if (reqId !== curLyricsReq) return;
-          lsSet(lk, ltxt || '∅');
-          setLyrics(ltxt);
-        });
-      }
+  document.querySelectorAll('.bgm-cover-name').forEach(function (el) {
+    var span = el.querySelector('span');
+    if (!span) { el.textContent = label; return; }
+    span.textContent = label;
+    span.style.animationDuration = '';
+    el.classList.remove('scrolling');
+    if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth) {
+      var w = el.scrollWidth;
+      span.textContent = label + '\u00A0\u00A0\u00A0\u00A0' + label;
+      /* ~45px/s, clamped to 6-30s so very long names do not crawl. */
+      span.style.animationDuration = Math.max(6, Math.min(30, w / 45)) + 's';
+      el.classList.add('scrolling');
     }
   });
 }
-/* ---- lyrics settings modal ---- */
-var lyricsModal = document.getElementById('lyrics-settings-modal');
-var lyricsModalCard = document.getElementById('lyrics-settings-modal-card');
-function showLyricsSettings(btn) {
-  var en = document.getElementById('lyr-set-enabled');
-  if (en) en.checked = lyricsEnabled;
-  var src = document.getElementById('lyr-set-source');
-  if (src) src.value = lyricsSource;
-  var op = document.getElementById('lyr-set-opacity');
-  if (op) op.value = lyricsTransparency;
-  var opVal = document.getElementById('lyr-set-opacity-val');
-  if (opVal) opVal.textContent = lyricsTransparency + '%';
-  modalShow(lyricsModal, lyricsModalCard, btn);
-}
-function hideLyricsSettings() { modalHide(lyricsModal, lyricsModalCard, null); }
-if (lyricsModal) lyricsModal.addEventListener('click', function (e) { if (e.target === lyricsModal) hideLyricsSettings(); });
-var lyrCloseBtn = document.getElementById('lyr-set-close');
-if (lyrCloseBtn) lyrCloseBtn.addEventListener('click', hideLyricsSettings);
-var lyrEn = document.getElementById('lyr-set-enabled');
-if (lyrEn) lyrEn.addEventListener('change', function (e) {
-  lyricsEnabled = !!e.target.checked;
-  lsSet('bgm-lyrics-enabled', lyricsEnabled ? '1' : '0');
-  applyLyricsVisibility();
-});
-var lyrSrc = document.getElementById('lyr-set-source');
-if (lyrSrc) lyrSrc.addEventListener('change', function (e) {
-  var v = e.target.value;
-  if (['online', 'local'].indexOf(v) < 0) v = 'online';
-  lyricsSource = v;
-  lsSet('bgm-lyrics-source', v);
-  bgmRefreshCoverLyrics(true);
-});
-var lyrOp = document.getElementById('lyr-set-opacity');
-if (lyrOp) lyrOp.addEventListener('input', function (e) {
-  var v = parseInt(e.target.value, 10);
-  if (isNaN(v)) v = 12;
-  v = Math.max(0, Math.min(100, v));
-  lyricsTransparency = v;
-  lsSet('bgm-lyrics-transparency', String(v));
-  var opVal = document.getElementById('lyr-set-opacity-val');
-  if (opVal) opVal.textContent = v + '%';
-  applyLyricsOpacity();
-});
-var lyrRefetch = document.getElementById('lyr-set-refetch');
-if (lyrRefetch) lyrRefetch.addEventListener('click', function () {
-  bgmRefreshCoverLyrics(true);
-  showToast('正在重新识别…');
-});
-/* Lyrics settings button in both expand bars. */
-document.querySelectorAll('.bgm-bar-lyrics').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); showLyricsSettings(b); }); });
-/* Close button on the floating lyrics panel turns lyrics off. */
-var lyrFloat = document.getElementById('lyrics-float');
-var lyrFloatClose = document.getElementById('lyrics-close');
-if (lyrFloatClose) lyrFloatClose.addEventListener('click', function (e) {
-  e.stopPropagation(); // never toggles the pinned view
-  lyricsEnabled = false;
-  lsSet('bgm-lyrics-enabled', '0');
-  if (lyrFloat) lyrFloat.classList.remove('expanded');
-  applyLyricsVisibility();
-});
-/* Drag the lyrics panel (mouse + touch) and click/tap to toggle the pinned
-   5-line view (1 line by default). A pointer that moves <= 6px is a click;
-   more is a drag (position saved to localStorage, restored on load). Hover
-   (mouse only, via CSS) expands temporarily without pinning. */
-var lyrDrag = null; /* {pointerId, startX, startY, offX, offY, dragging} */
-var lyrPosRestored = false;
-function lyrClampPos(left, top) {
-  var vw = window.innerWidth, vh = window.innerHeight;
-  var r = lyrFloat.getBoundingClientRect();
-  var w = r.width || 320, h = r.height || 68;
-  var minL = -(w - 80), maxL = vw - 80;
-  var minT = 0, maxT = Math.max(0, vh - 60);
-  return { left: Math.min(Math.max(left, minL), maxL), top: Math.min(Math.max(top, minT), maxT) };
-}
-function lyrApplyPos(left, top) {
-  var r = lyrFloat.getBoundingClientRect();
-  var p = lyrClampPos(left, top);
-  lyrFloat.style.width = r.width + 'px'; /* lock width so clearing right does not shrink it */
-  lyrFloat.style.left = p.left + 'px';
-  lyrFloat.style.top = p.top + 'px';
-  lyrFloat.style.right = 'auto';
-  lyrFloat.style.bottom = 'auto';
-}
-function lyrSavePos() {
-  try {
-    var r = lyrFloat.getBoundingClientRect();
-    lsSet('bgm-lyrics-pos', JSON.stringify({ left: Math.round(r.left), top: Math.round(r.top) }));
-  } catch (e) {}
-}
-function lyrRestorePos() {
-  if (lyrPosRestored || !lyrFloat) return;
-  lyrPosRestored = true;
-  var raw = null;
-  try { raw = localStorage.getItem('bgm-lyrics-pos'); } catch (e) {}
-  if (!raw) return;
-  try {
-    var p = JSON.parse(raw);
-    if (typeof p.left === 'number' && typeof p.top === 'number') lyrApplyPos(p.left, p.top);
-  } catch (e) {}
-}
-if (lyrFloat) {
-  lyrFloat.addEventListener('pointerdown', function (e) {
-    if (e.target.closest && e.target.closest('.lyr-close')) return; /* never drag from the × */
-    var r = lyrFloat.getBoundingClientRect();
-    lyrDrag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
-      offX: e.clientX - r.left, offY: e.clientY - r.top, dragging: false };
-    try { lyrFloat.setPointerCapture(e.pointerId); } catch (err) {}
-    e.preventDefault();
-  });
-  lyrFloat.addEventListener('pointermove', function (e) {
-    if (!lyrDrag || e.pointerId !== lyrDrag.pointerId) return;
-    var dx = e.clientX - lyrDrag.startX, dy = e.clientY - lyrDrag.startY;
-    if (!lyrDrag.dragging) {
-      if (Math.sqrt(dx * dx + dy * dy) <= 6) return; /* still a click so far */
-      lyrDrag.dragging = true;
-      lyrFloat.classList.add('dragging');
-    }
-    if (e.cancelable) e.preventDefault();
-    lyrApplyPos(e.clientX - lyrDrag.offX, e.clientY - lyrDrag.offY);
-  });
-  function lyrEndDrag(e) {
-    if (!lyrDrag || (e && e.pointerId !== lyrDrag.pointerId)) return;
-    var wasDrag = lyrDrag.dragging;
-    lyrDrag = null;
-    lyrFloat.classList.remove('dragging');
-    if (wasDrag) { lyrSavePos(); return; } /* drag: move only, do NOT toggle */
-    var expanding = !lyrFloat.classList.contains('expanded');
-    lyrFloat.classList.toggle('expanded');
-    /* expand: smooth scroll to center; collapse: instant (keeps it snappy) */
-    centerActiveLyric(!expanding);
-  }
-  lyrFloat.addEventListener('pointerup', lyrEndDrag);
-  lyrFloat.addEventListener('pointercancel', lyrEndDrag);
-  lyrFloat.addEventListener('mouseenter', function () { centerActiveLyric(false); });
-  lyrFloat.addEventListener('mouseleave', function () {
-    if (!lyrFloat.classList.contains('expanded')) centerActiveLyric(true);
-  });
-  var lyrLines = document.getElementById('lyrics-lines');
-  if (lyrLines) lyrLines.addEventListener('transitionend', function (e) {
-    if (e.propertyName === 'max-height') {
-      /* final correction once the viewport is at its final height, so the
-         current line lands exactly centered in the 5-line view */
-      centerActiveLyric(!lyrFloat.classList.contains('expanded') && !lyrFloat.matches(':hover'));
-      /* after expanding/collapsing, re-clamp so a dragged panel cannot end up off-screen */
-      if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
-    }
-  });
-  /* Manual mouse-wheel scrolling: record the time so the auto-centering
-     doesn't yank the view back while the user is reading. */
-  if (lyrLines) lyrLines.addEventListener('wheel', function () { lyrUserScrollAt = Date.now(); }, { passive: true });
-  window.addEventListener('resize', function () {
-    if (lyrFloat.style.left) { var r = lyrFloat.getBoundingClientRect(); lyrApplyPos(r.left, r.top); }
-  });
-}
-/* Keep the highlighted lyric in step after a seek. */
-bgm.addEventListener('seeked', syncLyricsLine);
-
 function makeQR(elId, text) {
   try {
     var qr = qrcode(0, 'M');
@@ -3177,7 +2643,6 @@ function showLogin() {
   document.getElementById('login-view').classList.remove('hidden');
   document.getElementById('app-view').classList.add('hidden');
   document.getElementById('view-user').classList.add('hidden');
-  applyLyricsVisibility();
 }
 
 function showApp() {
@@ -3192,7 +2657,6 @@ function showApp() {
      uses the muted-then-unmute trick, and the first tap/click starts it
      via bgmUnlock. */
   bgmTryAutoplay();
-  applyLyricsVisibility();
   document.querySelectorAll('.who-name').forEach(function(el){ el.textContent = '当前用户：' + ME.username + (ME.role === 'admin' ? '（管理员）' : ''); });
   document.querySelectorAll('.user-chpw-btn').forEach(function(el){ el.classList.toggle('hidden', ME.role === 'admin'); });
   if (ME.role === 'admin') {
