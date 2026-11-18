@@ -1,0 +1,13 @@
+[Unit]
+Description=Mouse Panel Hysteria 2 HTTP auth (per-user expiry + IP limit)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/hy2-auth.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
