@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hysteria 2 HTTP auth server for Mouse-Panel (per-user expiry + IP limit).
+"""Hysteria 2 HTTP auth server for Mouse-Panel (per-user expiry only).
 
 Hysteria calls POST /auth on every new client connection with
 {"addr": "client_ip:port", "auth": "password"} and expects
@@ -7,18 +7,13 @@ Hysteria calls POST /auth on every new client connection with
 
 The user file /var/lib/mouse-panel/hy2-users.json is written by
 hy2_auth_sync.py (enabled users only):
-  {"username": {"password": "...", "expires_at": 1234567890|null, "ip_limit": 0}}
+  {"username": {"password": "...", "expires_at": 1234567890|null}}
   - expires_at: Unix timestamp, null = permanent.
-  - ip_limit: max concurrent online IPs, 0 = unlimited.
 
-Online IPs are tracked in memory (per user, {ip: last_seen}) and persisted
-to /var/lib/mouse-panel/hy2-online.json so the panel API can display them.
-An IP counts toward the limit if it authed within IP_TIMEOUT seconds
-(1800s). Note the known limit: a device that stays connected for hours
-without re-authing ages out of the tracker, so the limit is enforced at
-connection time, not as a live session count. Hysteria's stats API
-(/online) only reports session counts, not IPs, so there is no live-IP
-source to merge in on this build.
+The IP-count limit was removed: VLESS cannot be counted in real time
+and HY2 only records an IP at connect time, so the limit could not
+actually be enforced. This service now only checks the password and
+the expiry date.
 
 Security (mirrors the upstream portal's /auth hardening):
 - Only accepts requests from loopback (127.0.0.1 / ::1). Hysteria's
@@ -30,9 +25,7 @@ Security (mirrors the upstream portal's /auth hardening):
 
 Runs as a systemd service (hy2-auth) on 127.0.0.1:18081. Stdlib only.
 """
-import hashlib
 import hmac
-import ipaddress
 import json
 import os
 import threading
@@ -41,14 +34,10 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 USERS_PATH = "/var/lib/mouse-panel/hy2-users.json"
-ONLINE_PATH = "/var/lib/mouse-panel/hy2-online.json"
 LISTEN = ("127.0.0.1", 18081)
-IP_TIMEOUT = 1800  # an IP counts toward the limit if seen within 30 min
 FAIL_WINDOW = 60   # rate-limit window (seconds)
 FAIL_MAX = 30      # max failed auths per window
 
-_lock = threading.Lock()
-_tracker = {}          # username -> {ip: last_seen_ts}
 _failures = deque()    # timestamps of failed auths (global)
 _users_cache = {"mtime": None, "data": {}}
 
@@ -72,49 +61,6 @@ def _load_users():
     return data
 
 
-def _norm_ip(raw):
-    """Normalize a client address to a plain IP string. Handles
-    '1.2.3.4:56789', '[2001:db8::1]:56789' and IPv4-mapped IPv6."""
-    if not raw:
-        return ""
-    ip = str(raw).strip()
-    # Strip the port: last ':' separates it (IPv6 is bracketed).
-    if ip.startswith("["):
-        ip = ip[1:].split("]", 1)[0]
-    elif ip.count(":") == 1:
-        ip = ip.rsplit(":", 1)[0]
-    try:
-        addr = ipaddress.ip_address(ip)
-        if addr.version == 6 and addr.ipv4_mapped:
-            addr = addr.ipv4_mapped
-        return str(addr)
-    except ValueError:
-        return ""
-
-
-def _prune_tracker(now):
-    for user in list(_tracker):
-        ips = {ip: t for ip, t in _tracker[user].items() if now - t < IP_TIMEOUT}
-        if ips:
-            _tracker[user] = ips
-        else:
-            _tracker.pop(user, None)
-
-
-def _save_tracker():
-    tmp = ONLINE_PATH + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            json.dump(_tracker, f)
-        os.replace(tmp, ONLINE_PATH)
-        try:
-            os.chmod(ONLINE_PATH, 0o600)
-        except OSError:
-            pass
-    except OSError:
-        pass
-
-
 def _rate_limited(now):
     while _failures and now - _failures[0] > FAIL_WINDOW:
         _failures.popleft()
@@ -125,14 +71,13 @@ def _record_failure(now):
     _failures.append(now)
 
 
-def authenticate(auth, addr):
-    """Returns (ok, msg)."""
+def authenticate(auth):
+    """Returns (ok, msg). Only the password and the expiry date are
+    checked; there is no IP counting (it could not be enforced)."""
     now = int(time.time())
     if _rate_limited(now):
         return False, "Auth service busy"
-    client_ip = _norm_ip(addr)
     users = _load_users()
-    matched_user = None
     matched_info = None
     if isinstance(auth, str) and auth:
         for username, info in users.items():
@@ -140,7 +85,7 @@ def authenticate(auth, addr):
                 continue
             pw = info.get("password")
             if isinstance(pw, str) and pw and hmac.compare_digest(pw.encode(), auth.encode()):
-                matched_user, matched_info = username, info
+                matched_info = info
                 break
     if matched_info is None:
         _record_failure(now)
@@ -153,24 +98,6 @@ def authenticate(auth, addr):
     if expires_at is not None and now >= expires_at:
         _record_failure(now)
         return False, "User account expired"
-    try:
-        ip_limit = max(0, int(matched_info.get("ip_limit") or 0))
-    except (TypeError, ValueError):
-        ip_limit = 0
-    with _lock:
-        _prune_tracker(now)
-        if ip_limit > 0 and client_ip:
-            active = _tracker.get(matched_user, {})
-            if client_ip not in active and len(active) >= ip_limit:
-                _record_failure(now)
-                return False, "Concurrent IP limit exceeded (%d max)" % ip_limit
-            active[client_ip] = now
-            _tracker[matched_user] = active
-        elif client_ip:
-            active = _tracker.get(matched_user, {})
-            active[client_ip] = now
-            _tracker[matched_user] = active
-        _save_tracker()
     return True, ""
 
 
@@ -204,10 +131,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(200, {"ok": False, "msg": "Forbidden"})
         if self.path == "/health":
             return self._reply(200, {"ok": True})
-        if self.path == "/online":
-            with _lock:
-                _prune_tracker(int(time.time()))
-                return self._reply(200, {"ok": True, "online": _tracker})
         return self._reply(404, {"ok": False, "msg": "not found"})
 
     def do_POST(self):
@@ -229,26 +152,11 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(req, dict):
             return self._reply(400, {"ok": False, "msg": "Invalid request"})
         auth = req.get("auth", "")
-        addr = req.get("addr", "")
-        if not isinstance(auth, str) or not isinstance(addr, str):
+        if not isinstance(auth, str):
             return self._reply(400, {"ok": False, "msg": "Invalid request"})
-        ok, msg = authenticate(auth, addr)
+        ok, msg = authenticate(auth)
         return self._reply(200, {"ok": ok, "msg": msg} if not ok else {"ok": True})
 
 
 if __name__ == "__main__":
-    # Load any persisted tracker so a restart does not forget recent IPs.
-    try:
-        with open(ONLINE_PATH) as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            now = int(time.time())
-            for user, ips in data.items():
-                if isinstance(ips, dict):
-                    kept = {ip: t for ip, t in ips.items()
-                            if isinstance(t, (int, float)) and now - t < IP_TIMEOUT}
-                    if kept:
-                        _tracker[user] = kept
-    except (OSError, ValueError):
-        pass
     ThreadingHTTPServer(LISTEN, Handler).serve_forever()
