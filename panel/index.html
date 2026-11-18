@@ -626,11 +626,10 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.6 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.7 更新日志</div>
     <ul class="version-list">
-      <li>用户管理新增“修改权限”按钮：除删除外的操作（流量设置、修改密码、到期时间、IP限制、停用用户）都收进弹窗，点一项再打开对应的设置弹窗；已停用用户显示“启用用户”</li>
-      <li>到期时间改用滚轮选择器（与运行日志下载的自定义时间同一组件），只显示年月日，不用时分秒；可一键“设为永久”</li>
-      <li>滚轮选择器改成循环滚动：月/日/时/分/秒上下都能一直滚（1 月往上是 12 月），天数按已选年月自动算（闰年 2 月 29 天）；年份不循环，范围扩到 1900–2999 年</li>
+      <li>修改权限弹窗：点某一项打开设置弹窗后，菜单弹窗保留在下层，设置关掉后菜单还在，可继续点别的项；点菜单的空白处或“关闭”才收回菜单</li>
+      <li>所有弹窗统一改成点空白处收回：点弹窗以外的地方关闭，点弹窗本身不再关闭（二维码弹窗原来是点任意位置都关，现改为只点空白处才关）</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -758,7 +757,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.6"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+var PANEL_VERSION = "V1.1.7"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
@@ -1495,7 +1494,7 @@ function hideQR(){
   qrModalCard.style.opacity = '0';
   qrModal.classList.remove('open');
 }
-qrModal.addEventListener('click', hideQR);
+qrModal.addEventListener('click', function (e) { if (e.target === qrModal) hideQR(); });
 
 /* ---- confirm modal: same pop-in / retract animation as the QR modal,
    but it only closes via 取消 (or 确定) — clicking the backdrop does nothing. ---- */
@@ -1587,6 +1586,8 @@ function hideConfirm(){
   confirmOnOk = null;
 }
 document.getElementById('confirm-modal-cancel').addEventListener('click', hideConfirm);
+// 点确认弹窗的空白处（遮罩）等同于点“取消”，只关本弹窗，不触发确定回调。
+confirmModal.addEventListener('click', function (e) { if (e.target === confirmModal) hideConfirm(); });
 document.getElementById('confirm-modal-ok').addEventListener('click', function(){
   var cb = confirmOnOk;
   var multiBox = document.getElementById('confirm-modal-inputs');
@@ -1729,8 +1730,9 @@ document.getElementById('playlist-close-btn').addEventListener('click', hidePlay
 
 /* ---- 修改权限弹窗 (display-type: click the backdrop to close).
    除删除外的用户操作都收进这里：流量设置、修改密码、到期时间、IP限制、
-   停用用户（已停用时显示启用用户）。点某一项后关闭本弹窗，再打开对应的
-   原有弹窗；确认弹窗的 FLIP 起点用触发本弹窗的“修改权限”按钮。 ---- */
+   停用用户（已停用时显示启用用户）。点某一项后本弹窗留在下层，对应的
+   设置弹窗盖在上面；设置弹窗关掉后本弹窗还在，可继续点别的项，点空白处
+   或“关闭”才收回本弹窗。确认弹窗的 FLIP 起点用触发本弹窗的“修改权限”按钮。 ---- */
 var permModal = document.getElementById('perm-modal');
 var permModalCard = document.getElementById('perm-modal-card');
 var permSrcBtn = null;
@@ -1741,13 +1743,11 @@ function hidePermModal() {
   permUser = null;
 }
 function permGo(fn) {
-  // 先直接关掉菜单弹窗（不做 FLIP 回缩，避免与确认弹窗的 FLIP 冲突），
-  // 再打开对应的原有弹窗，FLIP 起点是用户行的“修改权限”按钮。
-  if (permModal.classList.contains('open')) permModal.classList.remove('open');
+  // 不关菜单弹窗：让它留在下层，设置弹窗（确认/滚轮）盖在上面；
+  // 设置弹窗关掉后菜单还在，用户可以继续点别的项；点菜单的空白处或“关闭”才收回菜单。
+  // permSrcBtn/permUser 也不清掉，菜单还开着，再点别的项还要用。
   var btn = permSrcBtn;
   var u = permUser;
-  permSrcBtn = null;
-  permUser = null;
   if (u) fn(u, btn);
 }
 function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, btn) {
