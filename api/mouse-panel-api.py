@@ -64,6 +64,17 @@ PLAYLIST_PATH = "/var/lib/mouse-panel/playlist.json"
 PLAYLISTS_DIR = "/var/lib/mouse-panel/playlists"
 SERVERS_PATH = "/var/lib/mouse-panel/servers.json"
 
+# --- port hopping, upstream style (changed 2026-11-18) ---
+# Hysteria itself always listens on a SINGLE port now. Port hopping is done
+# by manual kernel redirect rules (NOT Hysteria's built-in listen-range,
+# which proved unreliable: its auto nftables/iptables rules left stale
+# conflicting entries after repeated toggles). The active range lives in
+# HOP_RANGE_PATH; the redirect rules live in HOP_NFT_PATH and are restored
+# at boot by hy2-hop.service. Empty/absent file = hopping off.
+HOP_RANGE_PATH = "/var/lib/mouse-panel/hop_range"
+HOP_NFT_PATH = "/etc/nftables-hy2-hop.nft"
+HOP_SERVICE_PATH = "/etc/systemd/system/hy2-hop.service"
+
 # --- runtime log (added 2026-11-16) ---
 # Dedicated rotating log for the API, exportable by the admin from the
 # panel (GET /api/admin/logs). The file is root-only (0600), like
@@ -931,46 +942,155 @@ HYSTERIA_CFG = "/etc/hysteria/config.yaml"
 
 
 def local_hop_range():
-    """Port-hopping range from the local Hysteria listen line, or ''."""
+    """Port-hopping range, or ''. Hysteria itself always listens on a single
+    port now; the range lives in HOP_RANGE_PATH when manual hopping is on.
+    A range listen line (from the old built-in approach) still counts, for
+    backwards compatibility."""
     try:
         with open(HYSTERIA_CFG) as f:
             text = f.read()
     except OSError:
-        return ""
+        text = ""
     m = re.search(r"^listen:\s*:(\d+)-(\d+)\s*$", text, re.M)
-    return "%s-%s" % (m.group(1), m.group(2)) if m else ""
+    if m:
+        return "%s-%s" % (m.group(1), m.group(2))
+    try:
+        with open(HOP_RANGE_PATH) as f:
+            r = f.read().strip()
+        if re.fullmatch(r"\d+-\d+", r):
+            return r
+    except OSError:
+        pass
+    return ""
+
+
+def _hop_nft_text(hop_range, hy2_port):
+    """nftables file content redirecting the hop range to the Hysteria
+    single port (both families; prerouting for remote clients, output for
+    local loopback probes, same as upstream's PREROUTING+OUTPUT)."""
+    s, e = hop_range.split("-")
+    chain = (
+        "    chain prerouting {\n"
+        "        type nat hook prerouting priority dstnat; policy accept;\n"
+        "        fib daddr type local udp dport %s-%s redirect to :%d\n"
+        "    }\n"
+        "    chain output {\n"
+        "        type nat hook output priority -100; policy accept;\n"
+        "        fib daddr type local udp dport %s-%s redirect to :%d\n"
+        "    }\n" % (s, e, hy2_port, s, e, hy2_port))
+    return ("table ip hy2hop {\n%s}\ntable ip6 hy2hop {\n%s}\n"
+            % (chain, chain))
+
+
+def _hop_service_text():
+    # Idempotent: drop any previous hy2hop tables first. A bare
+    # `nft -f` on an existing table silently ADDS a second copy of every
+    # rule (seen live 2026-11-18), so the deletes must come first.
+    return ("[Unit]\n"
+            "Description=Restore Hysteria 2 port-hop NAT rules\n"
+            "After=network.target\n"
+            "Before=hysteria-server.service\n"
+            "\n"
+            "[Service]\n"
+            "Type=oneshot\n"
+            "ExecStart=/bin/bash -c \"nft delete table ip hy2hop 2>/dev/null; "
+            "nft delete table ip6 hy2hop 2>/dev/null; "
+            "/usr/sbin/nft -f %s\"\n"
+            "RemainAfterExit=yes\n"
+            "\n"
+            "[Install]\n"
+            "WantedBy=multi-user.target\n" % HOP_NFT_PATH)
+
+
+def apply_manual_hop_rules(hop_range, hy2_port):
+    """Write the nftables hop rules for hop_range -> hy2_port and apply
+    them. Idempotent; also (re)writes + enables the boot service. Raises
+    on failure."""
+    with open(HOP_NFT_PATH, "w") as f:
+        f.write(_hop_nft_text(hop_range, hy2_port))
+    with open(HOP_SERVICE_PATH, "w") as f:
+        f.write(_hop_service_text())
+    run("systemctl daemon-reload")
+    # Drop any previous hy2hop tables first so -f never trips on a
+    # duplicate table (repeated toggles used to leave them behind).
+    run("nft delete table ip hy2hop 2>/dev/null; true")
+    run("nft delete table ip6 hy2hop 2>/dev/null; true")
+    rc, _, err = run("nft -f %s" % HOP_NFT_PATH)
+    if rc != 0:
+        raise RuntimeError("nft 规则应用失败：%s" % err)
+    run("systemctl enable hy2-hop.service")
+
+
+def clear_manual_hop_rules():
+    """Remove the nftables hop rules + file and disable the boot service.
+    Never raises (best effort)."""
+    run("nft delete table ip hy2hop 2>/dev/null; true")
+    run("nft delete table ip6 hy2hop 2>/dev/null; true")
+    try:
+        os.remove(HOP_NFT_PATH)
+    except OSError:
+        pass
+    run("systemctl disable --now hy2-hop.service 2>/dev/null; true")
+
+
+def _ensure_single_listen(hy2_port):
+    """If the Hysteria listen line is still a range (old built-in hopping),
+    put it back to the single node port and restart Hysteria. Returns True
+    if a restart happened."""
+    try:
+        with open(HYSTERIA_CFG) as f:
+            text = f.read()
+    except OSError:
+        return False
+    if not re.search(r"^listen:\s*:\d+-\d+\s*$", text, re.M):
+        return False
+    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$",
+                          "listen: :%d" % hy2_port, text, count=1, flags=re.M)
+    if n != 1:
+        return False
+    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
+    with open(HYSTERIA_CFG, "w") as f:
+        f.write(new_text)
+    restart_hysteria()
+    return True
 
 
 def set_local_hop_range(hop_range):
-    """Set the local Hysteria listen line to a hop range or back to the
-    single node port. Restarts hysteria-server. Raises on failure
-    (config is rolled back). Returns the effective listen value."""
+    """Set port hopping the upstream way: Hysteria keeps listening on its
+    single node port; the hop range is recorded in HOP_RANGE_PATH and the
+    kernel redirects it with manual nftables rules (HOP_NFT_PATH +
+    hy2-hop.service). Passing '' turns hopping off (removes the file +
+    rules). The Hysteria listen line is never a range anymore; if it still
+    is one (from the old built-in approach), it is put back to the single
+    port first. Returns the effective listen value (':<port>')."""
     node = load_node()
+    hy2_port = node["hy2_port"]
     if hop_range:
-        m = re.fullmatch(r"(\d+)-(\d+)", hop_range.strip())
+        hop_range = hop_range.strip()
+        m = re.fullmatch(r"(\d+)-(\d+)", hop_range)
         if not m or not (1 <= int(m.group(1)) < int(m.group(2)) <= 65535):
             raise ValueError("跳跃区间须为 起-止，例如 20000-40000")
         if int(m.group(2)) - int(m.group(1)) < 99:
             raise ValueError("跳跃区间至少跨 100 个端口")
-        listen = ":%s" % hop_range.strip()
+        _ensure_single_listen(hy2_port)
+        with open(HOP_RANGE_PATH, "w") as f:
+            f.write(hop_range + "\n")
+        try:
+            apply_manual_hop_rules(hop_range, hy2_port)
+        except Exception:
+            try:
+                os.remove(HOP_RANGE_PATH)
+            except OSError:
+                pass
+            raise
     else:
-        listen = ":%d" % node["hy2_port"]
-    with open(HYSTERIA_CFG) as f:
-        text = f.read()
-    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$", "listen: %s" % listen,
-                          text, count=1, flags=re.M)
-    if n != 1:
-        raise RuntimeError("hysteria 配置里找不到 listen 行")
-    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
-    try:
-        with open(HYSTERIA_CFG, "w") as f:
-            f.write(new_text)
-        restart_hysteria()
-    except Exception:
-        run("cp %s.bak-hop %s" % (HYSTERIA_CFG, HYSTERIA_CFG))
-        restart_hysteria()
-        raise
-    return listen
+        try:
+            os.remove(HOP_RANGE_PATH)
+        except OSError:
+            pass
+        clear_manual_hop_rules()
+        _ensure_single_listen(hy2_port)
+    return ":%d" % hy2_port
 
 
 def remote_hy2_link(server, username, pw, hop_enabled=True):
