@@ -133,6 +133,7 @@
   .utable .vless-uuid { font-family: monospace; font-size: 12px; }
   .utable .vless-copy { padding: 3px 8px; font-size: 12px; margin-left: 6px; }
   .utable .vless-port { font-size: 12px; color: #8b98a5; margin-top: 3px; white-space: nowrap; }
+  .utable .cell-sub { font-size: 12px; color: #8b98a5; margin-top: 3px; white-space: nowrap; }
   /* mobile: each user row becomes a card, with the column name shown on the left */
   @media (max-width: 640px) {
     .utable, .utable tbody { display: block; width: 100%; }
@@ -226,6 +227,11 @@
   .srv-name-input { flex: 1; min-width: 120px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 10px; font-size: 14px; }
   .srv-quota-label { display: flex; align-items: center; gap: 4px; color: #8b98a5; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
   .srv-quota-input { width: 84px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 8px; font-size: 14px; }
+  .srv-hop { display: flex; align-items: center; gap: 8px; flex-basis: 100%; flex-wrap: wrap; }
+  .srv-hop-label { display: flex; align-items: center; gap: 4px; color: #8b98a5; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+  .srv-hop-input { width: 130px; background: #0b0f14; border: 1px solid #2a3444; border-radius: 8px; color: #e6e6e6; padding: 9px 8px; font-size: 14px; }
+  .srv-hop-status { color: #8b98a5; font-size: 12px; }
+  .srv-hop-hint { flex-basis: 100%; color: #8b98a5; font-size: 12px; }
   .srv-info { color: #8b98a5; font-size: 12px; flex-shrink: 0; }
   .servers-add { border-top: 1px solid #2a3444; padding-top: 14px; margin-top: 6px; }
   #servers-modal-card { max-height: calc(100vh - 40px); overflow-y: auto; }
@@ -316,6 +322,8 @@
       <div><label>用户名（2-32 位，支持中文、字母、数字、下划线和横线）</label><input id="nu-name" type="text" placeholder="比如 小明 或 xiaoming"></div>
       <div><label id="nu-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="nu-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
       <div><label id="nu-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="nu-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div><label>到期（可选，留空 = 永久）</label><input id="nu-expires" type="date"></div>
+      <div><label>IP 限制（可选，0 = 不限）</label><input id="nu-ip-limit" type="number" min="0" max="1000" step="1" placeholder="0"></div>
       <div style="flex:0 0 auto"><button onclick="addUser(this)">添加用户</button></div>
     </div>
     <div class="hint">添加后只生成一个一次性口令，把它发给新用户，他首次登录时用这个口令自己设置密码。设置完成后他立刻获得两台服务器的 HY2 与 VLESS 专属链接（用户名即 HY2 账号，VLESS 用专属端口）。上限按台分别计算：某台超限只停那台的节点，另一台不受影响，下月 1 号自动恢复。</div>
@@ -602,10 +610,12 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.3 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.4 更新日志</div>
     <ul class="version-list">
-      <li>安装支持免交互：设 MP_* 环境变量可跳过对应提问（域名、面板域名、邮箱、额度、端口）</li>
-      <li>项目现为 hysteria2-installer 的 fork，致谢已相应调整</li>
+      <li>每用户到期时间：到期后两台同时停用，不自动恢复；重新启用时清掉到期时间</li>
+      <li>同时在线 IP 限制：HY2 建连时检查，0 = 不限；用户列表显示当前在线 IP</li>
+      <li>HY2 端口跳跃：每台可设 UDP 跳跃区间（如 20000-40000），默认关闭，开前须放行该区间 UDP</li>
+      <li>面板顶部加 license / platform / Hysteria 徽章</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -732,7 +742,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.3"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+var PANEL_VERSION = "V1.1.4"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
@@ -1925,6 +1935,18 @@ function renderD1Errors() {
 function applyUpdated(ts) {
   document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (ts || '—'); });
 }
+/* ---- HY2 端口跳跃：每台服务器的 hop_range，由 /api/alerts 的 servers 条目
+   提供（loadAlerts 里更新）；renderServersList 用它渲染输入框与状态。 ---- */
+var HOP_BY_ID = {};
+function applyHopRanges() {
+  document.querySelectorAll('.srv-row').forEach(function (row) {
+    var hop = HOP_BY_ID[row.getAttribute('data-id')] || '';
+    var input = row.querySelector('.srv-hop-input');
+    var status = row.querySelector('.srv-hop-status');
+    if (input && document.activeElement !== input) input.value = hop;
+    if (status) status.textContent = hop ? ('已开启：' + hop) : '未开启';
+  });
+}
 function loadServers() {
   return fetch('/api/servers', { cache: 'no-store' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -2023,6 +2045,12 @@ function renderServersList() {
       + '<button class="small ghost" onclick="saveServerRow(\'' + esc(s.id) + '\', this)">保存</button>'
       + '<span class="srv-info">' + (s.type === 'local' ? '本地' : '远程') + (s.host ? ' · ' + esc(s.host) + (s.port ? ':' + s.port : '') : '') + '</span>'
       + (s.type === 'local' ? '' : '<button class="small danger" onclick="delServer(\'' + esc(s.id) + '\', this)">删除</button>')
+      + '<div class="srv-hop">'
+      + '<label class="srv-hop-label">端口跳跃 <input type="text" class="srv-hop-input" value="' + esc(HOP_BY_ID[s.id] || '') + '" placeholder="20000-40000"></label>'
+      + '<button class="small ghost" onclick="saveHop(\'' + esc(s.id) + '\', this)">保存</button>'
+      + '<span class="srv-hop-status">' + (HOP_BY_ID[s.id] ? '已开启：' + esc(HOP_BY_ID[s.id]) : '未开启') + '</span>'
+      + '</div>'
+      + '<div class="srv-hop-hint">开启后 HY2 不再监听单个端口，改为监听该 UDP 区间，链接会带 mport 参数；需在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。</div>'
       + '</div>';
   });
   wrap.innerHTML = html;
@@ -2057,6 +2085,24 @@ function saveServerRow(id, btn) {
       });
     })
     .catch(function (e) { showToast('保存失败：' + e.message, true); });
+}
+function saveHop(id, btn) {
+  var row = btn.closest('.srv-row');
+  var input = row ? row.querySelector('.srv-hop-input') : null;
+  var hop = input ? (input.value || '').trim() : '';
+  if (hop !== '' && !/^\d+-\d+$/.test(hop)) { showToast('跳跃区间须为 起-止，例如 20000-40000，留空表示关闭。', true); return; }
+  btn.disabled = true;
+  fetch('/api/servers/' + encodeURIComponent(id) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop_range: hop }) })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      HOP_BY_ID[id] = res.d.hop_range || '';
+      renderServersList();
+      loadAlerts();
+      showToast(HOP_BY_ID[id] ? ('端口跳跃已开启：' + HOP_BY_ID[id] + '，记得在云厂商防火墙放行该区间 UDP。') : '端口跳跃已关闭。');
+    })
+    .catch(function (e) { showToast('保存失败：' + e.message, true); })
+    .finally(function () { btn.disabled = false; });
 }
 function delServer(id, btn) {
   var s = serverById(id);
@@ -2132,6 +2178,9 @@ function loadAlerts() {
       document.getElementById('al-alert').value = d.alert_threshold_pct;
       document.getElementById('al-disable').value = d.disable_threshold_pct;
       var html = d.telegram_configured ? 'Telegram 已配置' : 'Telegram 未配置（填好 Token 与 Chat ID 后才能发提醒）';
+      HOP_BY_ID = {};
+      (d.servers || []).forEach(function (s) { HOP_BY_ID[s.id] = s.hop_range || ''; });
+      applyHopRanges();
       sortServers(d.servers || []).forEach(function (s) {
         var pct = (s.pct == null) ? '—' : s.pct.toFixed(1) + '%';
         var used = (s.used_gb == null) ? '—' : s.used_gb.toFixed(2) + ' GB';
@@ -3183,6 +3232,24 @@ function loadUser() {
     });
 }
 
+/* ---- 到期 / IP 列：expires_at 是 Unix 秒时间戳，按北京时间（UTC+8）转
+   YYYY-MM-DD；online_ips 只含最近 10 分钟内鉴权过的 IP，按 IP 去重计数。 ---- */
+function fmtDateBJ(ts) {
+  var d = new Date((ts + 8 * 3600) * 1000);
+  var m = d.getUTCMonth() + 1, day = d.getUTCDate();
+  return d.getUTCFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+}
+function expiryIpCell(x) {
+  var ts = x.expires_at, line1;
+  if (ts == null) line1 = '<div>永久</div>';
+  else if (ts < Math.floor(Date.now() / 1000)) line1 = '<div class="bad">已到期</div>';
+  else line1 = '<div>' + fmtDateBJ(ts) + '</div>';
+  var ips = {};
+  (x.online_ips || []).forEach(function (o) { if (o && o.ip) ips[o.ip] = true; });
+  var n = Object.keys(ips).length;
+  var lim = (x.ip_limit > 0) ? ('限 ' + x.ip_limit + ' IP') : '不限';
+  return line1 + '<div class="cell-sub">' + lim + ' · ' + n + ' 在线</div>';
+}
 function loadUsers() {
   var wrap = document.getElementById('users-table-wrap');
   fetch('/api/admin/users', { cache: 'no-store' })
@@ -3192,9 +3259,9 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
-      var html = '<table class="utable"><tr><th>用户</th><th>密码</th><th>VLESS</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>操作</th></tr>';
+      var html = '<table class="utable"><tr><th>用户</th><th>密码</th><th>VLESS</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期 / IP</th><th>操作</th></tr>';
       if (admin) {
-        html += '<tr><td data-label="用户">admin</td><td data-label="密码">—</td><td data-label="VLESS">—</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td>'
+        html += '<tr><td data-label="用户">admin</td><td data-label="密码">—</td><td data-label="VLESS">—</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td><td data-label="到期 / IP">—</td>'
           + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
       }
       users.forEach(function(x){
@@ -3225,10 +3292,12 @@ function loadUsers() {
         else if (overLocal) status = 'D2 已超限';
         else status = '正常';
         var cls = (pending || !x.enabled || dis.d1 || dis.local || overD1 || overLocal) ? 'bad' : '';
-        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="密码" style="font-family:monospace; word-break:break-all;">' + pw + '</td><td data-label="VLESS">' + vless + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td>'
+        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="密码" style="font-family:monospace; word-break:break-all;">' + pw + '</td><td data-label="VLESS">' + vless + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td><td data-label="到期 / IP">' + expiryIpCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
           + '<button class="small ghost" onclick="setLimit(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', this)">改上限</button>'
           + '<button class="small ghost" onclick="resetPw(\'' + esc(x.username) + '\', this, ' + (x.allow_pw_change !== 0) + ')">改密码</button>'
+          + '<button class="small ghost" onclick="setExpiry(\'' + esc(x.username) + '\', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', this)">到期</button>'
+          + '<button class="small ghost" onclick="setIpLimit(\'' + esc(x.username) + '\', ' + (x.ip_limit || 0) + ', this)">IP限制</button>'
           + (pending ? '' : '<button class="small ghost" onclick="toggleUser(\'' + esc(x.username) + '\', ' + (x.enabled ? 'false' : 'true') + ', this)">' + (x.enabled ? '停用' : '启用') + '</button>')
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
@@ -3248,10 +3317,18 @@ function addUser(btn) {
   var name = document.getElementById('nu-name').value.trim();
   var limD1 = document.getElementById('nu-limit-d1').value.trim();
   var limLocal = document.getElementById('nu-limit-local').value.trim();
+  var exp = document.getElementById('nu-expires').value.trim();
+  var ipLim = document.getElementById('nu-ip-limit').value.trim();
   var err = document.getElementById('nu-err');
   err.textContent = '';
   if (!name) { err.textContent = '用户名必填。'; return; }
+  if (exp !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(exp)) { err.textContent = '到期时间须为 YYYY-MM-DD 格式。'; return; }
   var body = { username: name, limits: { d1: limD1 === '' ? null : Number(limD1), local: limLocal === '' ? null : Number(limLocal) } };
+  if (exp !== '') body.expires_at = exp;
+  if (ipLim !== '') {
+    if (!/^\d+$/.test(ipLim) || Number(ipLim) < 0 || Number(ipLim) > 1000) { err.textContent = 'IP 限制须为 0–1000 的整数。'; return; }
+    body.ip_limit = Number(ipLim);
+  }
   btn.disabled = true;
   btn.textContent = '添加中…';
   fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -3261,6 +3338,8 @@ function addUser(btn) {
       document.getElementById('nu-name').value = '';
       document.getElementById('nu-limit-d1').value = '';
       document.getElementById('nu-limit-local').value = '';
+      document.getElementById('nu-expires').value = '';
+      document.getElementById('nu-ip-limit').value = '';
       var token = res.d.setup_token || '';
       lastRegUser = name;
       lastRegLink = location.origin + location.pathname + '?setup=1&user=' + encodeURIComponent(name) + '&token=' + encodeURIComponent(token);
@@ -3294,6 +3373,51 @@ function setLimit(username, curD1, curLocal, btn) {
       { label: adminServerName('d1', 'Debian-1') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curD1 == null ? '' : String(curD1) },
       { label: adminServerName('local', 'Debian-2') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curLocal == null ? '' : String(curLocal) },
     ] }
+  );
+}
+
+function setExpiry(username, curExpiresAt, btn) {
+  var cur = (curExpiresAt == null) ? '' : fmtDateBJ(curExpiresAt);
+  showConfirm(
+    '设置 ' + username + ' 的到期时间',
+    '留空表示永久。到期后账号会被停用，HY2 与 VLESS 链接同时失效；重新启用时会清除到期时间（改为永久）。',
+    btn,
+    function(v){
+      if (v === undefined) return;
+      var val = (v || '').trim();
+      if (val !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(val)) { showToast('到期时间须为 YYYY-MM-DD 格式，或留空表示永久。', true); return; }
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/expiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expires_at: val === '' ? null : val }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+          loadUsers();
+          showToast('到期时间已更新。');
+        })
+        .catch(function(e){ showToast('设置失败：' + e.message, true); });
+    },
+    { input: true, inputType: 'date', inputValue: cur }
+  );
+}
+
+function setIpLimit(username, curLimit, btn) {
+  showConfirm(
+    '设置 ' + username + ' 的同时在线 IP 上限',
+    '同一账号最多同时在线的 IP 数；0 表示不限。超限的设备连接会被拒绝。',
+    btn,
+    function(v){
+      if (v === undefined) return;
+      var raw = (v || '').trim();
+      if (raw === '' || !/^\d+$/.test(raw) || Number(raw) < 0 || Number(raw) > 1000) { showToast('上限须为 0–1000 的整数，0 表示不限。', true); return; }
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/ip-limit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip_limit: Number(raw) }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+          loadUsers();
+          showToast('IP 上限已更新。');
+        })
+        .catch(function(e){ showToast('设置失败：' + e.message, true); });
+    },
+    { input: true, inputType: 'number', inputPlaceholder: '0–1000，0 表示不限', inputValue: String(curLimit || 0) }
   );
 }
 
@@ -3352,6 +3476,7 @@ function toggleUser(username, enable, btn) {
       .then(function(res){
         if (!res.ok) throw new Error((res.d && res.d.error) || '操作失败');
         loadUsers();
+        if (res.d && res.d.expiry_cleared) showToast('已到期，启用时已清除到期时间（改为永久）。');
       })
       .catch(function(e){ showToast('操作失败：' + e.message, true); });
   });
