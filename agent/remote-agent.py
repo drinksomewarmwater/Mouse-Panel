@@ -288,17 +288,29 @@ def read_vless_uuid(cfg):
 
 
 def read_reality(cfg):
-    """Reality parameters of the VLESS inbound, if it uses Reality."""
+    """Reality parameters of the VLESS inbound, if it uses Reality.
+
+    The sing-box config only stores the private key (never the public
+    key) and short_id is a list, so pbk/sid come from the agent conf
+    (REALITY_PBK / REALITY_SID, written when Reality was set up).
+    """
     for ib in cfg.get("inbounds", []):
         if ib.get("type") == "vless":
             tls = ib.get("tls", {}) or {}
             reality = tls.get("reality", {}) or {}
             if reality.get("enabled"):
                 hs = reality.get("handshake", {}) or {}
+                sid = CONF.get("REALITY_SID", "")
+                if not sid:
+                    raw_sid = reality.get("short_id", "")
+                    if isinstance(raw_sid, list):
+                        sid = raw_sid[0] if raw_sid else ""
+                    else:
+                        sid = raw_sid or ""
                 return {
-                    "pbk": reality.get("public_key", ""),
-                    "sid": reality.get("short_id", ""),
-                    "sni": tls.get("server_name", "") or hs.get("server", ""),
+                    "pbk": CONF.get("REALITY_PBK", ""),
+                    "sid": sid,
+                    "sni": CONF.get("REALITY_SNI", "") or tls.get("server_name", "") or hs.get("server", ""),
                     "fp": "chrome",
                 }
     return None
