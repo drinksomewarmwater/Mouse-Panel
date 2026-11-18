@@ -176,11 +176,9 @@
   .bgm-wrap { position: relative; display: inline-flex; }
   .bgm-bar { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; display: flex; flex-direction: column; gap: 6px; background: rgba(26, 34, 48, 0.97); border: 1px solid rgba(42, 52, 68, 0.9); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); opacity: 0; visibility: hidden; transform: translateY(-8px) rotateX(-30deg); transform-origin: top center; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; z-index: 40; white-space: nowrap; }
   .bgm-bar-row { display: flex; justify-content: center; gap: 6px; }
-  /* Transport row (prev / play / next): wider buttons and a bigger
-     gap, so the row is close in width to the mode + playlist row
-     below it instead of looking much narrower. */
+  /* Transport row (prev / play / next): only a bigger gap between the
+     three buttons — the buttons themselves keep their original size. */
   .bgm-bar-row.transport { gap: 14px; }
-  .bgm-bar-row.transport .bgm-bar-btn { min-width: 54px; padding: 10px 14px; font-size: 15px; }
   @media (hover: hover) {
     .bgm-wrap:hover .bgm-bar { opacity: 1; visibility: visible; transform: translateY(0) rotateX(0); }
   }
