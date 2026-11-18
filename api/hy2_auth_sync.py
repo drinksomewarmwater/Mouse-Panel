@@ -3,10 +3,10 @@
 
 Usage: hy2_auth_sync.py [--ensure-stats] < users.json
 users.json: {"users": {"username": {"password": "...", "expires_at": int|null,
-"ip_limit": int}, ...}} (enabled users only). A plain string value is
-also accepted as just the password (expires_at null, ip_limit 0).
+...}} (enabled users only). A plain string value is
+also accepted as just the password (expires_at null).
 - Writes /var/lib/mouse-panel/hy2-users.json (0600) for the hy2-auth
-  service, which enforces per-user expiry + concurrent-IP limits.
+  service, which enforces per-user expiry.
 - Replaces the whole `auth:` block in /etc/hysteria/config.yaml with
   `type: http` pointing at http://127.0.0.1:18081/auth.
 - With --ensure-stats, adds a trafficStats section (127.0.0.1:19996) if missing.
@@ -110,12 +110,11 @@ def main():
     users = {}
     for name, info in raw_users.items():
         if isinstance(info, str):
-            users[name] = {"password": info, "expires_at": None, "ip_limit": 0}
+            users[name] = {"password": info, "expires_at": None}
         elif isinstance(info, dict):
             users[name] = {
                 "password": info.get("password", ""),
                 "expires_at": info.get("expires_at"),
-                "ip_limit": info.get("ip_limit", 0),
             }
     if not auth_service_up():
         print(json.dumps({"ok": False,
