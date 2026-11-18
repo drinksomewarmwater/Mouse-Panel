@@ -594,6 +594,8 @@ install -m 755 "$SRC/api/vless-sync-users.py" /usr/local/bin/vless-sync-users.py
 install -m 755 "$SRC/api/mouse-panel-alerts.py" /usr/local/bin/mouse-panel-alerts.py
 install -m 755 "$SRC/agent/remote-agent.py" /usr/local/bin/remote-agent.py
 install -m 755 "$SRC/agent/remote-agent-gate.sh" /usr/local/bin/remote-agent-gate.sh
+install -m 755 "$SRC/api/hy2-auth.py" /usr/local/bin/hy2-auth.py
+install -m 644 "$SRC/api/hy2-auth.service" /etc/systemd/system/hy2-auth.service
 install -m 644 "$SRC/api/mouse-panel-api.service" /etc/systemd/system/mouse-panel-api.service
 ok "面板文件已部署到 $PANEL_DIR 与 /usr/local/bin。"
 
@@ -638,6 +640,11 @@ fi
 
 # ---------- 面板 API 服务与定时任务 ----------
 systemctl daemon-reload
+# HY2 鉴权服务（到期 + IP 限制）必须先于 Hysteria 切到 HTTP 鉴权之前跑起来。
+systemctl enable --now hy2-auth >/dev/null 2>&1 \
+  || die "HY2 鉴权服务启动失败，请看 systemctl status hy2-auth。"
+sleep 1
+systemctl is-active --quiet hy2-auth || die "HY2 鉴权服务未运行。"
 systemctl enable --now mouse-panel-api >/dev/null 2>&1 \
   || die "面板 API 启动失败，请看 systemctl status mouse-panel-api。"
 sleep 2
