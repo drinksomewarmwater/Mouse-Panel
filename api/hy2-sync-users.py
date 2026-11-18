@@ -41,6 +41,7 @@ def ensure_columns():
 
 def users_for(server):
     ensure_columns()
+    conn = sqlite3.connect(DB)
     rows = conn.execute(
         "SELECT username, hy2_password, role, pw_set, disabled_json, expires_at, ip_limit"
         " FROM users WHERE enabled=1"
