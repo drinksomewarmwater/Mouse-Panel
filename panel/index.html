@@ -647,6 +647,7 @@
       <li>添加用户改成弹窗填写（用户名、流量上限、到期时间、IP 限制），到期时间与修改权限里统一用滚轮选择器</li>
       <li>服务器设置改成一级菜单（面板名称 / 各 VPS 设置 / 添加服务器 / 流量预警设置 / 运行日志），点一项开二级弹窗，需要确认或再选的内容是三级弹窗</li>
       <li>用户列表：操作列收窄（两按钮改纵向排布），密码列与 VLESS 列取消显示；密码改在“修改权限 → 修改密码”弹窗里显示当前密码</li>
+      <li>用户列表列调整：用户列改名“用户名”，新增“权限”列（管理员/用户），状态列只分正常/停用/故障；到期时间与 IP 拆成两列，管理员到期显示永久，IP 列（含管理员）沿用公用用户的格式；管理员的每月上限与本月已用也按 D1/D2 两行显示</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -3455,23 +3456,36 @@ function loadUser() {
     });
 }
 
-/* ---- 到期 / IP 列：expires_at 是 Unix 秒时间戳，按北京时间（UTC+8）转
-   YYYY-MM-DD；online_ips 只含最近 10 分钟内鉴权过的 IP，按 IP 去重计数。 ---- */
+/* ---- 到期时间列：expires_at 是 Unix 秒时间戳，按北京时间（UTC+8）转
+   YYYY-MM-DD；null = 永久。 ---- */
 function fmtDateBJ(ts) {
   var d = new Date((ts + 8 * 3600) * 1000);
   var m = d.getUTCMonth() + 1, day = d.getUTCDate();
   return d.getUTCFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
 }
-function expiryIpCell(x) {
-  var ts = x.expires_at, line1;
-  if (ts == null) line1 = '<div>永久</div>';
-  else if (ts < Math.floor(Date.now() / 1000)) line1 = '<div class="bad">已到期</div>';
-  else line1 = '<div>' + fmtDateBJ(ts) + '</div>';
+function expiryCell(x) {
+  var ts = x.expires_at;
+  if (ts == null) return '永久';
+  if (ts < Math.floor(Date.now() / 1000)) return '<span class="bad">已到期</span>';
+  return fmtDateBJ(ts);
+}
+/* ---- IP 列：与原来“到期 / IP”列第二行同一格式——“限 N IP · M 在线”或
+   “不限 · M 在线”；在线数按 online_ips（最近 10 分钟内鉴权过的 IP）去重计数。
+   管理员也用同一格式。 ---- */
+function ipCell(x) {
   var ips = {};
   (x.online_ips || []).forEach(function (o) { if (o && o.ip) ips[o.ip] = true; });
   var n = Object.keys(ips).length;
   var lim = (x.ip_limit > 0) ? ('限 ' + x.ip_limit + ' IP') : '不限';
-  return line1 + '<div class="cell-sub">' + lim + ' · ' + n + ' 在线</div>';
+  return lim + ' · ' + n + ' 在线';
+}
+/* ---- 状态列：只分三档。故障 = 任一台超限（已停用或当前已超）；停用 = 账号
+   未启用或待设置密码；其余正常。 ---- */
+function userStatus(x, overD1, overLocal, pending) {
+  var dis = x.disabled || {};
+  if (dis.d1 || dis.local || overD1 || overLocal || x.disabled_reason === 'over_limit') return { text: '故障', cls: 'bad' };
+  if (!x.enabled || pending) return { text: '停用', cls: 'bad' };
+  return { text: '正常', cls: '' };
 }
 function loadUsers() {
   var wrap = document.getElementById('users-table-wrap');
@@ -3482,9 +3496,16 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
-      var html = '<table class="utable"><tr><th>用户</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期 / IP</th><th>操作</th></tr>';
+      var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>IP</th><th>操作</th></tr>';
       if (admin) {
-        html += '<tr><td data-label="用户">admin</td><td data-label="每月上限">不限</td><td data-label="本月已用">' + fmtAuto(admin.month_total || 0) + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">管理员</td><td data-label="到期 / IP">—</td>'
+        // 管理员的每月上限与本月已用也按普通用户（公用）的格式：D1 / D2 各一行。
+        var aLim = admin.limits || {};
+        var aSv = admin.servers || {};
+        var aLimHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + (aLim.d1 == null ? '不限' : aLim.d1 + ' GB') + '</span></div>'
+          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (aLim.local == null ? '不限' : aLim.local + ' GB') + '</span></div>';
+        var aMonthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(aSv.d1 ? aSv.d1.month_total : 0) + '</span></div>'
+          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(aSv.local ? aSv.local.month_total : 0) + '</span></div>';
+        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="IP" class="nowrap">' + ipCell(admin) + '</td>'
           + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
       }
       users.forEach(function(x){
@@ -3498,21 +3519,10 @@ function loadUsers() {
           + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(mLocal) + '</span></div>';
         var overD1 = lim.d1 != null && mD1 >= lim.d1 * 1e9;
         var overLocal = lim.local != null && mLocal >= lim.local * 1e9;
-        var dis = x.disabled || {};
         var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
         var pw = pending ? '未设置' : esc(x.hy2_password || '—');
-        var status;
-        if (pending) status = '待设置密码';
-        else if (!x.enabled) status = x.disabled_reason === 'over_limit' ? '已超限停用' : (x.disabled_reason === 'rotated' ? '轮换后停用' : '已停用');
-        else if (dis.d1 && dis.local) status = '两台超限停用';
-        else if (dis.d1) status = 'D1 超限停用';
-        else if (dis.local) status = 'D2 超限停用';
-        else if (overD1 && overLocal) status = '两台已超限';
-        else if (overD1) status = 'D1 已超限';
-        else if (overLocal) status = 'D2 已超限';
-        else status = '正常';
-        var cls = (pending || !x.enabled || dis.d1 || dis.local || overD1 || overLocal) ? 'bad' : '';
-        html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td><td data-label="到期 / IP">' + expiryIpCell(x) + '</td>'
+        var st = userStatus(x, overD1, overLocal, pending);
+        html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="IP" class="nowrap">' + ipCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
           + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this)">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
