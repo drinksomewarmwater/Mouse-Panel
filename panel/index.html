@@ -51,6 +51,12 @@
   #confirm-modal-inputs .confirm-modal-field.checkbox-field label { margin: 0; color: #c7d0db; font-size: 14px; }
   #confirm-modal-inputs .confirm-modal-field.checkbox-field input { width: auto; padding: 0; background: none; border: none; }
   .confirm-modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
+  /* ---- 修改权限弹窗：操作项纵向排布，整行可点 ---- */
+  .perm-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .perm-actions button { width: 100%; text-align: left; background: transparent; border: 1px solid #2a3444; color: #e6e6e6; padding: 11px 14px; font-size: 14px; border-radius: 10px; }
+  .perm-actions button:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
+  .perm-actions button.danger { color: #f87171; }
+  .perm-actions button.danger:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }
   .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); z-index: 100; background: rgba(26, 34, 48, 0.95); border: 1px solid rgba(42, 52, 68, 0.9); color: #e6e6e6; font-size: 14px; line-height: 1.5; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); max-width: calc(100vw - 48px); opacity: 0; visibility: hidden; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; pointer-events: none; }
   .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
   .toast.err { border-color: rgba(248, 113, 113, 0.6); color: #fca5a5; }
@@ -608,13 +614,22 @@
   </div>
 </div>
 
+<div class="confirm-modal" id="perm-modal">
+  <div class="confirm-modal-card" id="perm-modal-card">
+    <div class="confirm-modal-title" id="perm-modal-title">修改权限</div>
+    <div class="perm-actions" id="perm-modal-actions"></div>
+    <div class="confirm-modal-btns">
+      <button id="perm-close-btn">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.5 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.6 更新日志</div>
     <ul class="version-list">
-      <li>修复用户页链接加载失败（本地 HY2 链接格式化错误）</li>
-      <li>节点名统一为 VPS 名 + 协议名（如 Debian-KR-Hy2、Debian-US-Vless）</li>
-      <li>用户页服务器名不再依赖链接接口，流量接口也返回服务器名</li>
+      <li>用户管理新增“修改权限”按钮：除删除外的操作（流量设置、修改密码、到期时间、IP限制、停用用户）都收进弹窗，点一项再打开对应的设置弹窗；已停用用户显示“启用用户”</li>
+      <li>到期时间改用滚轮选择器（与运行日志下载的自定义时间同一组件），只显示年月日，不用时分秒；可一键“设为永久”</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -709,6 +724,7 @@
     <div class="confirm-modal-title" id="log-wheel-title">选择开始时间</div>
     <div class="log-wheel" id="log-wheel"></div>
     <div class="confirm-modal-btns">
+      <button class="ghost hidden" id="log-wheel-clear">设为永久</button>
       <button class="ghost" id="log-wheel-cancel">取消</button>
       <button id="log-wheel-ok">确定</button>
     </div>
@@ -741,7 +757,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.5"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+var PANEL_VERSION = "V1.1.6"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
@@ -1710,6 +1726,58 @@ function hidePlaylistModal() {
 playlistModal.addEventListener('click', function (e) { if (e.target === playlistModal) hidePlaylistModal(); });
 document.getElementById('playlist-close-btn').addEventListener('click', hidePlaylistModal);
 
+/* ---- 修改权限弹窗 (display-type: click the backdrop to close).
+   除删除外的用户操作都收进这里：流量设置、修改密码、到期时间、IP限制、
+   停用用户（已停用时显示启用用户）。点某一项后关闭本弹窗，再打开对应的
+   原有弹窗；确认弹窗的 FLIP 起点用触发本弹窗的“修改权限”按钮。 ---- */
+var permModal = document.getElementById('perm-modal');
+var permModalCard = document.getElementById('perm-modal-card');
+var permSrcBtn = null;
+var permUser = null;
+function hidePermModal() {
+  modalHide(permModal, permModalCard, permSrcBtn);
+  permSrcBtn = null;
+  permUser = null;
+}
+function permGo(fn) {
+  // 先直接关掉菜单弹窗（不做 FLIP 回缩，避免与确认弹窗的 FLIP 冲突），
+  // 再打开对应的原有弹窗，FLIP 起点是用户行的“修改权限”按钮。
+  if (permModal.classList.contains('open')) permModal.classList.remove('open');
+  var btn = permSrcBtn;
+  var u = permUser;
+  permSrcBtn = null;
+  permUser = null;
+  if (u) fn(u, btn);
+}
+function showPermModal(username, limD1, limLocal, expiresAt, ipLimit, enabled, allowPwChange, pending, btn) {
+  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, ipLimit: ipLimit, enabled: enabled, allowPwChange: allowPwChange };
+  permUser = u;
+  permSrcBtn = btn;
+  document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
+  var box = document.getElementById('perm-modal-actions');
+  box.innerHTML = '';
+  var items = [
+    { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limD1, u.limLocal, b); } },
+    { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange); } },
+    { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
+    { label: 'IP限制', fn: function(u, b){ setIpLimit(u.username, u.ipLimit, b); } },
+  ];
+  if (!pending) {
+    items.push({ label: u.enabled ? '停用用户' : '启用用户', danger: true, fn: function(u, b){ toggleUser(u.username, !u.enabled, b); } });
+  }
+  items.forEach(function (it) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    if (it.danger) b.className = 'danger';
+    b.addEventListener('click', function(){ permGo(it.fn); });
+    box.appendChild(b);
+  });
+  modalShow(permModal, permModalCard, btn);
+}
+permModal.addEventListener('click', function (e) { if (e.target === permModal) hidePermModal(); });
+document.getElementById('perm-close-btn').addEventListener('click', hidePermModal);
+
 /* ---- version footer + changelog modal (display-type: click the backdrop to close) ---- */
 var versionModal = document.getElementById('version-modal');
 var versionModalCard = document.getElementById('version-modal-card');
@@ -2348,9 +2416,15 @@ function downloadAdminLogs(btn) {
 var logWheelModal = document.getElementById('log-wheel-modal');
 var logWheelCard = document.getElementById('log-wheel-modal-card');
 var logWheelSrcBtn = null;
-var logWheelTarget = null; // 'from' or 'to'
+var logWheelTarget = null; // 'from' or 'to'（日志下载用；到期时间用不到）
 var logWheelDate = null;   // Date being edited (a copy; only committed on 确定)
 var logWheelTimers = {};
+/* 通用滚轮选择器：logWheelUnits 决定显示哪些列（默认 6 列：年月日时分秒；
+   到期时间只用年月日 3 列）。logWheelOnOk(date) 为确定回调，未设置时走日志
+   下载的 from/to 逻辑；logWheelOnClear 为“设为永久”回调，未设置时隐藏该按钮。 */
+var logWheelUnits = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+var logWheelOnOk = null;
+var logWheelOnClear = null;
 function logWheelDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
 function logWheelUnitValue(unit) {
   if (!logWheelDate) return 0;
@@ -2401,7 +2475,7 @@ function logWheelBuild() {
   var wrap = document.getElementById('log-wheel');
   wrap.innerHTML = '';
   var y = logWheelDate.getFullYear(), m = logWheelDate.getMonth();
-  var defs = [
+  var allDefs = [
     { unit: 'year', label: '年', min: 2020, max: 2035 },
     { unit: 'month', label: '月', min: 1, max: 12 },
     { unit: 'day', label: '日', min: 1, max: logWheelDaysInMonth(y, m) },
@@ -2409,6 +2483,7 @@ function logWheelBuild() {
     { unit: 'minute', label: '分', min: 0, max: 59 },
     { unit: 'second', label: '秒', min: 0, max: 59 },
   ];
+  var defs = allDefs.filter(function (d) { return logWheelUnits.indexOf(d.unit) !== -1; });
   defs.forEach(function (d) {
     var colWrap = logWheelBuildCol(d.unit, d.label, d.min, d.max);
     wrap.appendChild(colWrap);
@@ -2453,6 +2528,10 @@ function logWheelOnScroll(col) {
 function showLogWheel(target, btn) {
   logWheelTarget = target;
   logWheelSrcBtn = btn;
+  logWheelUnits = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+  logWheelOnOk = null;
+  logWheelOnClear = null;
+  document.getElementById('log-wheel-clear').classList.add('hidden');
   var cur = (target === 'from' ? logFromVal : logToVal) || new Date();
   logWheelDate = new Date(cur.getTime());
   document.getElementById('log-wheel-title').textContent = target === 'from' ? '选择开始时间' : '选择结束时间';
@@ -2463,19 +2542,29 @@ function hideLogWheel() {
   modalHide(logWheelModal, logWheelCard, logWheelSrcBtn);
   logWheelSrcBtn = null;
   logWheelTarget = null;
+  logWheelOnOk = null;
+  logWheelOnClear = null;
 }
 document.getElementById('log-from-btn').addEventListener('click', function () { showLogWheel('from', this); });
 document.getElementById('log-to-btn').addEventListener('click', function () { showLogWheel('to', this); });
 document.getElementById('log-wheel-cancel').addEventListener('click', hideLogWheel);
 logWheelModal.addEventListener('click', function (e) { if (e.target === logWheelModal) hideLogWheel(); });
 document.getElementById('log-wheel-ok').addEventListener('click', function () {
-  if (!logWheelDate || !logWheelTarget) { hideLogWheel(); return; }
+  if (!logWheelDate) { hideLogWheel(); return; }
   var d = new Date(logWheelDate.getTime());
+  if (logWheelOnOk) { var cb = logWheelOnOk; hideLogWheel(); cb(d); return; }
+  if (!logWheelTarget) { hideLogWheel(); return; }
   var btn = logWheelTarget === 'from' ? document.getElementById('log-from-btn') : document.getElementById('log-to-btn');
   if (logWheelTarget === 'from') logFromVal = d; else logToVal = d;
   btn.textContent = logDisplay(d);
   btn.classList.remove('empty');
   hideLogWheel();
+});
+document.getElementById('log-wheel-clear').addEventListener('click', function () {
+  if (!logWheelOnClear) { hideLogWheel(); return; }
+  var cb = logWheelOnClear;
+  hideLogWheel();
+  cb();
 });
 
 var switchTimer = null;
@@ -3293,11 +3382,7 @@ function loadUsers() {
         var cls = (pending || !x.enabled || dis.d1 || dis.local || overD1 || overLocal) ? 'bad' : '';
         html += '<tr><td data-label="用户">' + esc(x.username) + '</td><td data-label="密码" style="font-family:monospace; word-break:break-all;">' + pw + '</td><td data-label="VLESS">' + vless + '</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (cls ? ' bad' : '') + '">' + status + '</td><td data-label="到期 / IP">' + expiryIpCell(x) + '</td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="setLimit(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', this)">改上限</button>'
-          + '<button class="small ghost" onclick="resetPw(\'' + esc(x.username) + '\', this, ' + (x.allow_pw_change !== 0) + ')">改密码</button>'
-          + '<button class="small ghost" onclick="setExpiry(\'' + esc(x.username) + '\', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', this)">到期</button>'
-          + '<button class="small ghost" onclick="setIpLimit(\'' + esc(x.username) + '\', ' + (x.ip_limit || 0) + ', this)">IP限制</button>'
-          + (pending ? '' : '<button class="small ghost" onclick="toggleUser(\'' + esc(x.username) + '\', ' + (x.enabled ? 'false' : 'true') + ', this)">' + (x.enabled ? '停用' : '启用') + '</button>')
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.ip_limit || 0) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', this)">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3375,27 +3460,44 @@ function setLimit(username, curD1, curLocal, btn) {
   );
 }
 
+/* ---- 到期时间：复用日志下载的滚轮选择器（统一组件），但只显示年月日 3 列，
+   不用时分秒。确定提交 YYYY-MM-DD；“设为永久”提交 null（清除到期时间）。 ---- */
+function submitExpiry(username, val) {
+  fetch('/api/admin/users/' + encodeURIComponent(username) + '/expiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expires_at: val }) })
+    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
+      loadUsers();
+      showToast(val === null ? '到期时间已清除（改为永久）。' : '到期时间已更新。');
+    })
+    .catch(function(e){ showToast('设置失败：' + e.message, true); });
+}
+function showExpiryWheel(username, curExpiresAt, btn) {
+  logWheelTarget = null;
+  logWheelSrcBtn = btn;
+  logWheelUnits = ['year', 'month', 'day'];
+  var cur;
+  if (curExpiresAt != null) {
+    // expires_at 是 Unix 秒时间戳；按北京时间取年月日，再拼成本地 Date。
+    var d = new Date((curExpiresAt + 8 * 3600) * 1000);
+    cur = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+  } else {
+    var now = new Date();
+    cur = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  }
+  logWheelDate = cur;
+  logWheelOnOk = function (picked) {
+    var val = picked.getFullYear() + '-' + logPad(picked.getMonth() + 1) + '-' + logPad(picked.getDate());
+    submitExpiry(username, val);
+  };
+  logWheelOnClear = function () { submitExpiry(username, null); };
+  document.getElementById('log-wheel-clear').classList.remove('hidden');
+  document.getElementById('log-wheel-title').textContent = '设置 ' + username + ' 的到期时间';
+  logWheelBuild();
+  modalShow(logWheelModal, logWheelCard, btn);
+}
 function setExpiry(username, curExpiresAt, btn) {
-  var cur = (curExpiresAt == null) ? '' : fmtDateBJ(curExpiresAt);
-  showConfirm(
-    '设置 ' + username + ' 的到期时间',
-    '留空表示永久。到期后账号会被停用，HY2 与 VLESS 链接同时失效；重新启用时会清除到期时间（改为永久）。',
-    btn,
-    function(v){
-      if (v === undefined) return;
-      var val = (v || '').trim();
-      if (val !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(val)) { showToast('到期时间须为 YYYY-MM-DD 格式，或留空表示永久。', true); return; }
-      fetch('/api/admin/users/' + encodeURIComponent(username) + '/expiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expires_at: val === '' ? null : val }) })
-        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
-        .then(function(res){
-          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
-          loadUsers();
-          showToast('到期时间已更新。');
-        })
-        .catch(function(e){ showToast('设置失败：' + e.message, true); });
-    },
-    { input: true, inputType: 'date', inputValue: cur }
-  );
+  showExpiryWheel(username, curExpiresAt, btn);
 }
 
 function setIpLimit(username, curLimit, btn) {
