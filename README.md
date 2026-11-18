@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.6
+# Mouse Panel 🐹 V1.1.7
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -333,6 +333,11 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.7 (2026-11-18)
+
+- 修改权限弹窗：点某一项打开设置弹窗后，菜单弹窗保留在下层，设置关掉后菜单还在，可继续点别的项；点菜单的空白处或“关闭”才收回菜单。
+- 所有弹窗统一改成点空白处收回：点弹窗以外的地方关闭，点弹窗本身不再关闭。二维码弹窗原来是点任意位置都关，现改为只点空白处才关；确认弹窗原来点空白处没反应，现点空白处等同于点“取消”。
 
 ### V1.1.6 (2026-11-18)
 
