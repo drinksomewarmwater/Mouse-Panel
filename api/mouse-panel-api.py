@@ -844,23 +844,29 @@ def data_updated():
 
 def admin_local_hy2_link():
     u = get_user("admin")
-    node = load_node()
-    domain = node["domain"]
     pw = urllib.parse.quote(u["hy2_password"], safe="")
-    return ("hysteria2://admin:%s@%s:%d?sni=%s#【推荐】Hy2"
-            % (pw, domain, node["hy2_port"], domain))
+    return local_hy2_link("admin", pw)
 
 
 def local_hy2_link(username, pw):
     node = load_node()
     domain = node["domain"]
+    name = local_server_name()
     q = "sni=%s" % domain
     hop = local_hop_range()
     if hop:
         q += "&mport=%s" % hop
-    return ("hysteria2://%s:%s@%s:%d?%s#【推荐】Hy2"
+    return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain,
-               node["hy2_port"], q, domain))
+               node["hy2_port"], q, name))
+
+
+def local_server_name():
+    """Display name of the local server (from servers.json), e.g. Debian-KR."""
+    for s in load_servers():
+        if s.get("type") == "local":
+            return s.get("name") or "本机"
+    return "本机"
 
 
 HYSTERIA_CFG = "/etc/hysteria/config.yaml"
@@ -956,6 +962,10 @@ def user_links(username):
     local_vless = re.sub(
         r"vless://[^@]+@([^:]+):\d+",
         r"vless://%s@\g<1>:%d" % (vuuid, port), admin_vless, count=1)
+    # Node name unified: VPS name + protocol (e.g. Debian-KR-Vless).
+    # The admin link still carries the old KR-Vless fragment, so rewrite it.
+    local_vless = re.sub(r"#.*$", "#【推荐】%s-Vless" % local_name,
+                         local_vless, count=1)
     out = [{"id": "local", "name": local_name,
             "link": local_hy2_link(username, pw),
             "vless_link": local_vless,
@@ -1401,6 +1411,12 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 links = load_links()
                 links["hy2"] = admin_local_hy2_link()
+                # Node name unified: VPS name + protocol (e.g. Debian-KR-Vless).
+                # links.json may carry an older fragment, so rewrite it here.
+                if links.get("vless"):
+                    links["vless"] = re.sub(
+                        r"#.*$", "#【推荐】%s-Vless" % local_server_name(),
+                        links["vless"], count=1)
                 self._json(200, links)
             except Exception as e:
                 self._json(500, {"error": str(e)})
@@ -1488,6 +1504,12 @@ class Handler(BaseHTTPRequestHandler):
                 # admin rename on its next data refresh (no reload needed).
                 usage["panel_name"] = load_config()["panel_name"]
                 usage["updated"] = data_updated()
+                # Server display names ride along too, so the user page
+                # switcher labels update even if /api/user/links fails.
+                usage["server_names"] = [
+                    {"id": s.get("id"), "name": s.get("name") or s.get("id")}
+                    for s in load_servers()
+                ]
                 self._json(200, usage)
             except Exception as e:
                 self._json(500, {"error": str(e)})
