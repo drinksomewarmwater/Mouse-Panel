@@ -651,6 +651,7 @@
       <li>HY2 端口跳跃（默认关闭，须先在云厂商防火墙放行该区间的 UDP）</li>
       <li>HY2 端口跳跃改用上游的手动重定向方式：Hysteria 只监听单端口，跳跃区间靠内核规则（本地 nftables、远程 iptables）重定向过去；内置的区间监听三连失败、旧规则残留互相冲突，已弃用</li>
       <li>修 HY2 超时：中文域名链接改用 punycode 形式（如 us.xn--yet590c35ai8a.de5.net），Hysteria 的 TLS 认不出中文 SNI、握手失败报 timeout，VLESS 不受影响</li>
+      <li>歌词在线识别改模糊：lrclib 按歌名+歌手查不到时，再只按歌名查一次（文件名里的歌手常是频道名不是真歌手，带歌手查会返回空）；歌词缓存换新 key，旧的“暂无歌词”会重新识别</li>
       <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
       <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
       <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
@@ -1184,6 +1185,32 @@ function readEmbedded(fileUrl, cb) {
 function fetchLyricsOnline(artist, title, cb) {
   var base = 'https://lrclib.net/api';
   var q = '?artist_name=' + encodeURIComponent(artist) + '&track_name=' + encodeURIComponent(title);
+  function pickFrom(arr) {
+    if (!arr || !arr.length) return null;
+    var wantA = normStr(artist), wantT = normStr(title);
+    var firstWithLyrics = null, i, it;
+    for (i = 0; i < arr.length; i++) {
+      it = arr[i];
+      if (!(it.syncedLyrics || it.plainLyrics)) continue;
+      if (!firstWithLyrics) firstWithLyrics = it;
+      // Exact artist match wins outright.
+      if (wantA && normStr(it.artistName) === wantA) return it;
+    }
+    if (firstWithLyrics) return firstWithLyrics;
+    return null;
+  }
+  function searchOnlyTitle() {
+    // Fuzzy fallback: drop the artist entirely. Filenames often carry a
+    // mangled artist (e.g. "村西_馨悦_WhiteRainbow_"), and lrclib's
+    // artist filter then returns nothing even though the track exists.
+    fetch(base + '/search?track_name=' + encodeURIComponent(title))
+      .then(function (r) { return r.json(); })
+      .then(function (arr) {
+        var pick = pickFrom(arr);
+        cb(pick ? (pick.syncedLyrics || pick.plainLyrics || null) : null);
+      })
+      .catch(function () { cb(null); });
+  }
   fetch(base + '/get' + q).then(function (r) {
     if (!r.ok) throw new Error('not found');
     return r.json();
@@ -1193,17 +1220,11 @@ function fetchLyricsOnline(artist, title, cb) {
     fetch(base + '/search?track_name=' + encodeURIComponent(title) + (artist ? '&artist_name=' + encodeURIComponent(artist) : ''))
       .then(function (r) { return r.json(); })
       .then(function (arr) {
-        var pick = null;
-        if (arr && arr.length) {
-          var wantA = normStr(artist);
-          for (var i = 0; i < arr.length; i++) {
-            if (wantA && normStr(arr[i].artistName) === wantA) { pick = arr[i]; break; }
-          }
-          if (!pick) pick = arr[0];
-        }
-        cb(pick ? (pick.syncedLyrics || pick.plainLyrics || null) : null);
+        var pick = pickFrom(arr);
+        if (pick) cb(pick.syncedLyrics || pick.plainLyrics || null);
+        else searchOnlyTitle();
       })
-      .catch(function () { cb(null); });
+      .catch(function () { searchOnlyTitle(); });
   });
 }
 /* Online cover: fuzzy search, but only accept an exact trackName match
@@ -1341,7 +1362,7 @@ function bgmRefreshCoverLyrics(force) {
     } else if (lyricsSource === 'local') {
       setLyrics(null);
     } else {
-      var lk = 'bgm-lyr:online:' + normStr(artist) + '|' + normStr(title);
+      var lk = 'bgm-lyr:online2:' + normStr(artist) + '|' + normStr(title);
       var lcached = force ? null : lsGet(lk);
       if (lcached !== null && lcached !== undefined) {
         setLyrics(lcached === '∅' ? null : lcached);
