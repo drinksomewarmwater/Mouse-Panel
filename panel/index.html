@@ -667,6 +667,7 @@
       <li>管理员用户列表每行加“复制订阅”按钮（含管理员自己）：一点复制该用户的订阅链接，拉取即返回该用户的全部节点（HY2 + VLESS，两台服务器）</li>
       <li>IP 数量限制功能已移除：VLESS 无法实时计数、HY2 只在建连时计数，限制不住，删掉</li>
       <li>订阅链接随节点轮换同步轮换：轮换 VLESS / HY2 凭证后旧订阅链接失效，需重新复制新的订阅链接</li>
+      <li>管理员可在修改权限里为单个用户轮换凭证：一键生成新的 HY2 密码与 VLESS UUID，旧链接立刻失效，登录密码不变；管理员轮换 HY2 时不再连带轮换其他用户，各自独立轮换</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1417,6 +1418,7 @@ function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwCha
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
     { label: '端口跳跃', fn: function(u, b){ setHop(u.username, u.hop, b); } },
+    { label: '轮换凭证', fn: function(u, b){ rotateUserCreds(u.username, b); } },
   ];
   if (!pending) {
     items.push({ label: u.enabled ? '停用用户' : '启用用户', danger: true, fn: function(u, b){ toggleUser(u.username, !u.enabled, b); } });
@@ -2468,7 +2470,7 @@ function copyStr(text, btn, onDone) {
 function rotateLink(which, btn) {
   var name = which === 'vless' ? 'VLESS' : 'Hysteria 2';
   var warn = which === 'hy2'
-    ? '\n\n注意：轮换 HY2 会同时给所有用户生成新链接，并把除管理员外的所有用户停用。停用的用户页面只显示“用户已停用”，需要在用户管理里重新启用，启用后他们才能看到新链接。'
+    ? '\n\n只轮换管理员自己的 HY2 密码，其他用户不受影响；每个用户在用户管理里单独轮换。'
     : '';
   showConfirm(
     '确定要轮换 ' + name + ' 的凭证吗？',
@@ -2493,7 +2495,7 @@ function rotateLink(which, btn) {
 function rotateD1(which, btn) {
   var name = which === 'vless' ? 'VLESS' : 'Hysteria 2';
   var warn = which === 'hy2'
-    ? '\n\n注意：轮换 HY2 会同时给所有用户生成新链接，并把除管理员外的所有用户停用。停用的用户页面只显示“用户已停用”，需要在用户管理里重新启用，启用后他们才能看到新链接。'
+    ? '\n\n只轮换管理员自己的 HY2 密码，其他用户不受影响；每个用户在用户管理里单独轮换。'
     : '';
   showConfirm(
     '确定要轮换 ' + name + ' 的凭证吗？',
@@ -3460,6 +3462,25 @@ function toggleUser(username, enable, btn) {
       })
       .catch(function(e){ showToast('操作失败：' + e.message, true); });
   });
+}
+
+function rotateUserCreds(username, btn) {
+  showConfirm(
+    '为 ' + username + ' 轮换凭证',
+    '生成新的 HY2 密码与 VLESS UUID，旧节点链接立刻失效；登录密码不变，订阅链接同步失效需重新复制。',
+    btn,
+    function(){
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/rotate', { method: 'POST' })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '轮换失败');
+          hidePermModal();
+          loadUsers();
+          showToast('已轮换，请重新复制该用户的节点链接与订阅链接');
+        })
+        .catch(function(e){ showToast('轮换失败：' + e.message, true); });
+    }
+  );
 }
 
 function delUser(username, btn) {
