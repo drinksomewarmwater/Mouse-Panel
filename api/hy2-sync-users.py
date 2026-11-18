@@ -8,7 +8,7 @@ enabled=1, pw_set=1 and not disabled on that server (disabled_json[server]
 is null). A user who exceeded their limit on one server keeps HY2 on the
 other. Runs /usr/local/bin/hy2_auth_sync.py locally (--ensure-stats) and
 over SSH on each remote server. The sync writes the hy2-auth user file
-(password + expires_at + ip_limit per user) and points Hysteria at the
+(password + expires_at per user) and points Hysteria at the
 HTTP auth endpoint. Skips a server entirely when its user set is unchanged
 since the last sync (per-server hash in meta), so the poller can call this
 every 5 minutes safely. Prints {"ok": ..., "changed": ...}.
@@ -25,13 +25,12 @@ AGENT_SYNC = "/usr/local/bin/hy2_auth_sync.py"
 
 
 def ensure_columns():
-    """Add the expiry / IP-limit columns if missing (idempotent). The API
+    """Add the expiry column if missing (idempotent). The API
     does the same migration; this keeps the sync safe if it runs first."""
     conn = sqlite3.connect(DB)
     cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
     for col, ddl in [
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
-        ("ip_limit", "ALTER TABLE users ADD COLUMN ip_limit INTEGER NOT NULL DEFAULT 0"),
     ]:
         if col not in cols:
             conn.execute(ddl)
@@ -43,21 +42,17 @@ def users_for(server):
     ensure_columns()
     conn = sqlite3.connect(DB)
     rows = conn.execute(
-        "SELECT username, hy2_password, role, pw_set, disabled_json, expires_at, ip_limit"
+        "SELECT username, hy2_password, role, pw_set, disabled_json, expires_at"
         " FROM users WHERE enabled=1"
     ).fetchall()
     conn.close()
     out = {}
-    for username, pw, role, pw_set, djson, expires_at, ip_limit in rows:
-        try:
-            ip_limit = max(0, int(ip_limit or 0))
-        except (TypeError, ValueError):
-            ip_limit = 0
+    for username, pw, role, pw_set, djson, expires_at in rows:
         try:
             expires_at = int(expires_at) if expires_at is not None else None
         except (TypeError, ValueError):
             expires_at = None
-        rec = {"password": pw, "expires_at": expires_at, "ip_limit": ip_limit}
+        rec = {"password": pw, "expires_at": expires_at}
         if role == "admin":
             out[username] = rec
             continue
