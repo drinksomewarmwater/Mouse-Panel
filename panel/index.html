@@ -626,10 +626,16 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.7 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.3 更新日志</div>
     <ul class="version-list">
-      <li>修改权限弹窗：点某一项打开设置弹窗后，菜单弹窗保留在下层，设置关掉后菜单还在，可继续点别的项；点菜单的空白处或“关闭”才收回菜单</li>
-      <li>所有弹窗统一改成点空白处收回：点弹窗以外的地方关闭，点弹窗本身不再关闭（二维码弹窗原来是点任意位置都关，现改为只点空白处才关）</li>
+      <li>安装支持免交互：MP_* 环境变量可跳过对应提问，全部设好即全程不交互</li>
+      <li>项目现为 hysteria2-installer 的 fork，致谢已相应调整</li>
+      <li>每用户到期时间 + 同时在线 IP 限制；HY2 鉴权改用 HTTP（hy2-auth 服务）</li>
+      <li>HY2 端口跳跃（默认关闭，须先在云厂商防火墙放行该区间的 UDP）</li>
+      <li>修用户页链接加载失败 + 节点名统一为 VPS 名-协议名</li>
+      <li>用户管理加“修改权限”弹窗；到期时间改用滚轮选择器（年月日，可设为永久）</li>
+      <li>滚轮选择器循环滚动（月/日/时/分/秒），年份 1900–2999 年</li>
+      <li>修改权限二级弹窗关闭后菜单保留；所有弹窗统一点空白处收回</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -757,7 +763,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.7"; // 面板版本号：页脚与更新日志弹窗共用。补丁号（V1.1.1、V1.1.2……）由助手自行延续；中间数（V1.2.0）与大版本（V2.0.0）由用户另外说明
+var PANEL_VERSION = "V1.1.3"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
