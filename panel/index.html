@@ -662,6 +662,7 @@
       <li>修改权限新增“端口跳跃”设置：可按用户开关 HY2 端口跳跃（链接带不带 mport），默认开启；只有服务器开了跳跃区间时才生效</li>
       <li>版本更新日志列表可滚动（无滚动条），标题与关闭按钮固定不动</li>
       <li>悬浮歌词展开时显示歌曲封面（1 行时不显示）</li>
+      <li>音乐歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录；普通用户也能自己上传、删除、排序歌曲</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -893,12 +894,18 @@ function bgmToggle() {
     bgmStartTick();
   }
 }
+/* Per-user music: each user has their own playlist + music/<username>/
+   directory, so the file URL is namespaced by the logged-in user. */
+function musicUrl(file) {
+  var who = (ME && ME.username) || 'admin';
+  return 'music/' + encodeURIComponent(who) + '/' + encodeURIComponent(file);
+}
 function bgmLoad(id, autoplay) {
   var t = bgmTrackById(id);
   if (!t) return false;
   bgmCurrentId = id;
   bgm.volume = 0;
-  bgm.src = 'music/' + encodeURIComponent(t.file);
+  bgm.src = musicUrl(t.file);
   bgm.load();
   bgmUpdateTitle();
   bgmRefreshCoverLyrics();
@@ -1303,7 +1310,7 @@ function bgmRefreshCoverLyrics(force) {
   var meta = curTrackMeta();
   if (!meta) { setCover(null); setLyrics(null); return; }
   var reqId = ++curLyricsReq;
-  readEmbedded('music/' + encodeURIComponent(meta.file), function (emb) {
+  readEmbedded(musicUrl(meta.file), function (emb) {
     if (reqId !== curLyricsReq) return;
     var artist = emb.artist || meta.artist;
     var title = emb.title || meta.title;
@@ -1876,22 +1883,21 @@ document.getElementById('version-btn').textContent = '版本 ' + PANEL_VERSION;
 function renderPlaylist() {
   var list = document.getElementById('playlist-list');
   if (!list) return;
-  var isAdmin = !!(ME && ME.role === 'admin');
-  document.getElementById('playlist-drop').classList.toggle('hidden', !isAdmin);
-  document.getElementById('playlist-delete-btn').classList.toggle('hidden', !isAdmin);
+  /* Per-user playlists: every logged-in user manages their OWN list
+     (upload / delete / reorder), so the controls are shown to all. */
+  document.getElementById('playlist-drop').classList.remove('hidden');
+  document.getElementById('playlist-delete-btn').classList.remove('hidden');
   if (!PLAYLIST.length) {
-    list.innerHTML = '<div class="meta">暂无音乐。' + (isAdmin ? '点击下方“上传音乐”添加。' : '') + '</div>';
+    list.innerHTML = '<div class="meta">暂无音乐。点击下方“上传音乐”添加。</div>';
     return;
   }
   var html = '';
   PLAYLIST.forEach(function (t, i) {
     html += '<div class="pl-row' + (t.id === bgmCurrentId ? ' playing' : '') + '">'
-      + (isAdmin ? '<input type="checkbox" class="pl-check" value="' + esc(t.id) + '">' : '')
-      + '<span class="pl-name" onclick="plPlay(\'' + esc(t.id) + '\')">' + (t.id === bgmCurrentId ? '▶ ' : '') + esc(t.name) + (t.artist ? ' - ' + esc(t.artist) : '') + '</span>'
-      + (isAdmin
-        ? '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', -1)"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
-        + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', 1)"' + (i === PLAYLIST.length - 1 ? ' disabled' : '') + '>↓</button>'
-        : '')
+      + '<input type="checkbox" class="pl-check" value="' + esc(t.id) + '">'
+      + '<span class="pl-name" onclick="plPlay(\'' + esc(t.id) + '\')">' + (t.id === bgmCurrentId ? '▶ ' : '') + esc(t.name) + (t.artist ? ' - ' + t.artist : '') + '</span>'
+      + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', -1)"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
+      + '<button class="pl-mv" onclick="plMove(\'' + esc(t.id) + '\', 1)"' + (i === PLAYLIST.length - 1 ? ' disabled' : '') + '>↓</button>'
       + '</div>';
   });
   list.innerHTML = html;
