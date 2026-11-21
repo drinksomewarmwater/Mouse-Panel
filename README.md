@@ -147,15 +147,11 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ### 音乐播放列表
 
-顶栏与手机端底部各有一个 🎵 按钮。桌面端把鼠标悬停在按钮上、手机端点一下，会展开控制条：暂停 / 播放、循环模式（循环播放 → 随机播放 → 单曲循环）、上一首、下一首、歌词设置、播放列表。控制条顶部会显示当前歌曲的封面（没有封面时显示 🎵 占位）。点「播放列表」弹出窗口，可以点歌、上传音乐（支持把音频文件拖进窗口，单个文件上限 100MB）、上下移动排序、多选删除。**空格键也可以暂停 / 播放**（在输入框、按钮、链接获得焦点时不会触发，以免干扰输入）。歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录（服务器上是 `playlists/<用户名>.json` 与 `music/<用户名>/`），互不干扰。
-
-封面与歌词优先读音乐文件里内嵌的（封面、带时间戳的歌词）；文件里没有时，歌词去 [lrclib](https://lrclib.net) 检索（带时间戳的 LRC 歌词，可跟随播放滚动高亮），封面去 iTunes 检索（只认歌名、歌手都对得上的结果，宁可没有也不拿错的）。悬浮歌词默认只显示当前一行（桌面右下角、手机在底部音乐条上方，不挡内容）；鼠标悬停时展开为 5 行（当前行居中、上下各两行），点一下固定展开、再点恢复一行；按住拖动可移动到任意位置。点控制条里的「歌词设置」可以开关悬浮歌词、切换识别源（在线识别 / 仅本地）、调节透明度（越高越透明）、重新识别当前歌曲。识别结果只缓存在浏览器本地，不会写进仓库或服务器。
-
-![悬浮歌词（悬停展开 5 行）](docs/screenshots/lyrics.png)
+顶栏与手机端底部各有一个 🎵 按钮。桌面端把鼠标悬停在按钮上、手机端点一下，会展开控制条：音乐栏固定宽度 320px，歌名左对齐、太长时横向滚动循环显示；两行按钮居中：上一行 上一首 / 播放·暂停 / 下一首，下一行 播放模式（循环播放 → 随机播放 → 单曲循环）/ 播放列表。点「播放列表」弹出窗口，可以点歌、上传音乐（支持把音频文件拖进窗口，单个文件上限 100MB）、上下移动排序、多选删除。**空格键也可以暂停 / 播放**（在输入框、按钮、链接获得焦点时不会触发，以免干扰输入）。歌单按用户分开：管理员与每个用户各有自己的歌单与歌曲目录（服务器上是 `playlists/<用户名>.json` 与 `music/<用户名>/`），互不干扰。
 
 ![音乐播放列表](docs/screenshots/music.png)
 
-音乐文件放在服务器的 `music/` 目录下，播放列表存在 `/var/lib/mouse-panel/playlist.json`。**音乐文件有版权，不会放进这个仓库**，请用自己的音频文件。
+音乐文件放在服务器上各用户自己的 `music/<用户名>/` 目录下，播放列表存在 `/var/lib/mouse-panel/playlists/<用户名>.json`。**音乐文件有版权，不会放进这个仓库**，请用自己的音频文件。
 
 ### 服务器设置
 
@@ -273,8 +269,6 @@ Mouse-Panel/
 │   ├── index.html          # 主面板
 │   ├── traffic.html        # 公开流量页
 │   ├── qrcode.min.js       # 二维码生成
-│   ├── vendor/
-│   │   └── jsmediatags.min.js  # 读音频内嵌封面/歌词
 │   ├── favicon.svg         # 🐹 图标
 │   └── music/              # 背景音乐目录（只有 .gitkeep，不含音乐文件）
 ├── api/                    # 面板后端与定时任务
@@ -313,7 +307,6 @@ Mouse-Panel/
 | [vnstat](https://github.com/vergoh/vnstat) | Teemu Toivola | 流量统计（月 / 日用量来源） | GPL-2.0-only |
 | [Micro Slats](https://reactbits.dev/backgrounds/micro-slats) | React Bits（David Haz） | 面板背景特效；按原 shader 移植为原生 WebGL2（无 React、无 ogl、无 CDN） | MIT + Commons Clause |
 | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) | Kazuhiko Arase | 面板内二维码生成（`panel/qrcode.min.js`） | MIT |
-| [jsmediatags](https://github.com/aadsm/jsmediatags) | aadsm | 读音乐文件内嵌的封面与歌词（`panel/vendor/jsmediatags.min.js`） | MIT |
 | [V2Ray 统计 API（v2ray_api）](https://github.com/v2fly/v2ray-core) | v2fly / v2ray-core | VLESS 按用户统计用的 gRPC 统计接口与 protobuf 定义（`api/v2pb/` 为据此生成的桩代码） | MIT |
 
 Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpcio（Apache-2.0）与 protobuf（BSD-3-Clause），用于 VLESS 统计的 gRPC 调用。
@@ -510,5 +503,5 @@ MIT，见 [LICENSE](LICENSE)。
 
 ## 声明
 
-本项目仅供学习与交流使用，不托管、不分发任何受版权保护的内容。面板中的音乐、封面与歌词均来自用户自己的文件或在线公开检索，识别结果仅缓存在使用者本地浏览器中。如本项目中的任何内容侵犯了您的合法权益，请通过本仓库的 GitHub Issues 联系，核实后将尽快删除相关内容。
+本项目仅供学习与交流使用，不托管、不分发任何受版权保护的内容。面板中的音乐均来自用户自己的文件。如本项目中的任何内容侵犯了您的合法权益，请通过本仓库的 GitHub Issues 联系，核实后将尽快删除相关内容。
 
