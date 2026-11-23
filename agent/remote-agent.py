@@ -13,8 +13,6 @@ Subcommands:
                     print {"ok": true, "value": new} or {"ok": false, "error": ...}
   hystats           print the Hysteria /traffic JSON (per-user tx/rx)
   hy2-online        print the hy2-auth online-IP tracker JSON
-  hy2-hop RANGE     set the Hysteria listen line to a hop range
-                    ('20000-40000') or back to the single node port ('')
   vless-stats       print per-user VLESS delta since the last reset-read
                     (delegates to /usr/local/bin/vless_stats.py --reset).
                     Only the poller may call this: it consumes the counters.
@@ -62,14 +60,9 @@ DOMAIN = CONF.get("DOMAIN", "")
 VLESS_PORT = int(CONF.get("VLESS_PORT", "443"))
 HY2_PORT = int(CONF.get("HY2_PORT", "443"))
 
-# Port hopping, upstream style (changed 2026-11-18): Hysteria itself always
-# listens on a SINGLE port; hopping is manual iptables redirect rules (NOT
-# Hysteria's built-in listen-range, whose auto rules left stale conflicting
-# entries). The active range lives in HOP_RANGE_PATH; the rules are applied
-# by HOP_SCRIPT and restored at boot by hy2-hop.service.
-HOP_RANGE_PATH = "/var/lib/mouse-panel/hop_range"
-HOP_SCRIPT = "/root/hy2-hop.sh"
-HOP_SERVICE_PATH = "/etc/systemd/system/hy2-hop.service"
+# Port hopping was removed 2026-11-23 (V1.1.4): the hop range never
+# worked from the user's networks. HY2 now always uses its single node
+# port; the server-side hop rules/files/services were deleted the same day.
 VLESS_SECURITY = CONF.get("VLESS_SECURITY", "tls")
 VNSTAT_IFACE = CONF.get("VNSTAT_IFACE", "") or _default_iface()
 SINGBOX_CERT = CONF.get("SINGBOX_CERT", "/etc/sing-box/certs/fullchain.cer")
@@ -97,160 +90,6 @@ def restart_hysteria():
     time.sleep(2)
     if run("systemctl is-active hysteria-server")[1] != "active":
         raise RuntimeError("hysteria-server did not come back up after restart")
-
-
-def read_hop_range(text):
-    """Port-hopping range, or ''. Hysteria itself always listens on a single
-    port now; the range lives in HOP_RANGE_PATH when manual hopping is on.
-    A range listen line (from the old built-in approach) still counts, for
-    backwards compatibility."""
-    m = re.search(r"^listen:\s*:(\d+)-(\d+)\s*$", text, re.M)
-    if m:
-        return "%s-%s" % (m.group(1), m.group(2))
-    try:
-        with open(HOP_RANGE_PATH) as f:
-            r = f.read().strip()
-        if re.fullmatch(r"\d+-\d+", r):
-            return r
-    except OSError:
-        pass
-    return ""
-
-
-def _hop_script_text(hop_range, hy2_port):
-    """iptables/ip6tables script redirecting the hop range to the Hysteria
-    single port. Idempotent (-C check before -A). OUTPUT is limited to
-    locally-destined traffic so the proxy's own outbound UDP to remote
-    20000-40000 ports (games, WebRTC) is not hijacked."""
-    s, e = hop_range.split("-")
-    return ("#!/bin/bash\n"
-            "# Hysteria 2 port-hop redirect: UDP %s-%s -> %d (idempotent).\n"
-            "set -e\n"
-            "for t in iptables ip6tables; do\n"
-            "  command -v $t >/dev/null 2>&1 || continue\n"
-            "  $t -t nat -C PREROUTING -p udp --dport %s:%s -j REDIRECT --to-ports %d 2>/dev/null || \\\n"
-            "    $t -t nat -A PREROUTING -p udp --dport %s:%s -j REDIRECT --to-ports %d\n"
-            "  $t -t nat -C OUTPUT -p udp -m addrtype --dst-type LOCAL --dport %s:%s -j REDIRECT --to-ports %d 2>/dev/null || \\\n"
-            "    $t -t nat -A OUTPUT -p udp -m addrtype --dst-type LOCAL --dport %s:%s -j REDIRECT --to-ports %d\n"
-            "done\n" % (s, e, hy2_port,
-                         s, e, hy2_port, s, e, hy2_port,
-                         s, e, hy2_port, s, e, hy2_port))
-
-
-def _hop_service_text():
-    return ("[Unit]\n"
-            "Description=Restore Hysteria 2 port-hop NAT rules\n"
-            "After=network.target\n"
-            "Before=hysteria-server.service\n"
-            "\n"
-            "[Service]\n"
-            "Type=oneshot\n"
-            "ExecStart=%s\n"
-            "RemainAfterExit=yes\n"
-            "\n"
-            "[Install]\n"
-            "WantedBy=multi-user.target\n" % HOP_SCRIPT)
-
-
-def _delete_iptables_hop_rules(hop_range, hy2_port):
-    """Delete the iptables/ip6tables hop rules for a given range. Best
-    effort; never raises."""
-    if not hop_range:
-        return
-    s, e = hop_range.split("-")
-    for t in ("iptables", "ip6tables"):
-        run("%s -t nat -D PREROUTING -p udp --dport %s:%s -j REDIRECT --to-ports %d 2>/dev/null; true"
-            % (t, s, e, hy2_port))
-        run("%s -t nat -D OUTPUT -p udp -m addrtype --dst-type LOCAL --dport %s:%s -j REDIRECT --to-ports %d 2>/dev/null; true"
-            % (t, s, e, hy2_port))
-
-
-def _apply_iptables_hop_rules(hop_range, hy2_port):
-    """Write the hop script + boot service for hop_range -> hy2_port and
-    apply the rules. Raises on failure."""
-    with open(HOP_SCRIPT, "w") as f:
-        f.write(_hop_script_text(hop_range, hy2_port))
-    os.chmod(HOP_SCRIPT, 0o755)
-    with open(HOP_SERVICE_PATH, "w") as f:
-        f.write(_hop_service_text())
-    run("systemctl daemon-reload")
-    rc, _, err = run(HOP_SCRIPT)
-    if rc != 0:
-        raise RuntimeError("iptables 规则应用失败：%s" % err)
-    run("systemctl enable hy2-hop.service")
-
-
-def _ensure_single_listen():
-    """If the Hysteria listen line is still a range (old built-in hopping),
-    put it back to the single node port and restart Hysteria. Returns True
-    if a restart happened."""
-    try:
-        with open(HYSTERIA_CFG) as f:
-            text = f.read()
-    except OSError:
-        return False
-    if not re.search(r"^listen:\s*:\d+-\d+\s*$", text, re.M):
-        return False
-    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$",
-                          "listen: :%d" % HY2_PORT, text, count=1, flags=re.M)
-    if n != 1:
-        return False
-    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
-    with open(HYSTERIA_CFG, "w") as f:
-        f.write(new_text)
-    restart_hysteria()
-    return True
-
-
-def set_hop_range(hop_range):
-    """Set port hopping the upstream way: Hysteria keeps listening on its
-    single node port; the hop range is recorded in HOP_RANGE_PATH and the
-    kernel redirects it with manual iptables rules (HOP_SCRIPT +
-    hy2-hop.service). Passing '' turns hopping off (removes the file +
-    rules). The Hysteria listen line is never a range anymore; if it still
-    is one (from the old built-in approach), it is put back to the single
-    port first. Returns the effective listen value (':<port>')."""
-    if hop_range:
-        hop_range = hop_range.strip()
-        m = re.fullmatch(r"(\d+)-(\d+)", hop_range)
-        if not m or not (1 <= int(m.group(1)) < int(m.group(2)) <= 65535):
-            raise ValueError("hop range must be START-END, e.g. 20000-40000")
-        if int(m.group(2)) - int(m.group(1)) < 99:
-            raise ValueError("hop range must span at least 100 ports")
-        _ensure_single_listen()
-        # Clear any previous range's rules before applying the new range,
-        # so a changed range never leaves the old redirect behind.
-        try:
-            with open(HOP_RANGE_PATH) as f:
-                old = f.read().strip()
-        except OSError:
-            old = ""
-        if old and old != hop_range:
-            _delete_iptables_hop_rules(old, HY2_PORT)
-        with open(HOP_RANGE_PATH, "w") as f:
-            f.write(hop_range + "\n")
-        try:
-            _apply_iptables_hop_rules(hop_range, HY2_PORT)
-        except Exception:
-            try:
-                os.remove(HOP_RANGE_PATH)
-            except OSError:
-                pass
-            raise
-    else:
-        try:
-            with open(HOP_RANGE_PATH) as f:
-                old = f.read().strip()
-        except OSError:
-            old = ""
-        try:
-            os.remove(HOP_RANGE_PATH)
-        except OSError:
-            pass
-        _delete_iptables_hop_rules(old, HY2_PORT)
-        run("systemctl disable --now hy2-hop.service 2>/dev/null; true")
-        _ensure_single_listen()
-    return ":%d" % HY2_PORT
 
 
 def read_hy2_passwords(text):
@@ -373,7 +212,6 @@ def read_all():
         "domain": DOMAIN,
         "vless_port": VLESS_PORT,
         "hy2_port": HY2_PORT,
-        "hop_range": read_hop_range(hy_text),
         "vless_security": security,
         "reality": reality,
         "obfs_enabled": obfs_enabled,
@@ -525,18 +363,6 @@ def main():
                 headers={"Authorization": m.group(2)},
             )
             print(urllib.request.urlopen(req, timeout=5).read().decode())
-            return 0
-        except Exception as e:
-            print(json.dumps({"ok": False, "error": str(e)}))
-            return 1
-    if sys.argv[1] == "hy2-hop":
-        # Set port hopping the upstream way ('20000-40000') or back off
-        # (empty argument). Hysteria keeps its single node port; the range
-        # is recorded in HOP_RANGE_PATH and the kernel redirects it with
-        # manual iptables rules. Returns the effective listen value.
-        try:
-            listen = set_hop_range(sys.argv[2] if len(sys.argv) > 2 else "")
-            print(json.dumps({"ok": True, "listen": listen}))
             return 0
         except Exception as e:
             print(json.dumps({"ok": False, "error": str(e)}))
