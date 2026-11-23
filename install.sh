@@ -125,6 +125,25 @@ valid_domain() {
   printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'
 }
 
+to_punycode() {
+  # 中文域名转 punycode；纯 ASCII 域名原样返回。
+  # 用 python3 标准库的 idna 编解码，不依赖 idn2。提问时 python3 可能
+  # 还没装（依赖在后面才装），缺失时先装上——后面本来就要装它。
+  # 注意：本函数不输出提示（输出会被 $(...) 捕获进变量），只输出转换结果。
+  local d="$1"
+  # 含非 ASCII 字符（LC_ALL=C 下按字节判）才需要转码；纯 ASCII 原样返回。
+  if ! printf '%s' "$d" | LC_ALL=C grep -q '[^ -~]'; then
+    printf '%s' "$d"
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y -qq python3 \
+      || die "中文域名需 python3 转 punycode，安装 python3 失败。"
+  fi
+  python3 -c 'import sys; print(sys.argv[1].encode("idna").decode("ascii"))' "$d" \
+    || die "域名转 punycode 失败：$d"
+}
+
 # ---------- 前置检查 ----------
 [ "$(id -u)" = "0" ] || die "请用 root 用户运行（sudo -i 后再执行）。"
 [ -r /etc/os-release ] || die "无法识别操作系统。"
@@ -172,7 +191,10 @@ if [ -f "$DATA_DIR/node.json" ] && command -v jq >/dev/null 2>&1; then
   OLD_PANEL_PORT=$(jq -r '.panel_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
   OLD_NODE_PORT=$(jq -r '.vless_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
 fi
+# 环境变量里的中文域名先转 punycode，再校验（校验只认 ASCII）。
 # 环境变量先校验，不合法直接退出（不回落到交互提问，免得免交互安装半路卡住）。
+if [ -n "${MP_NODE_DOMAIN:-}" ]; then MP_NODE_DOMAIN=$(to_punycode "$MP_NODE_DOMAIN"); fi
+if [ -n "${MP_PANEL_DOMAIN:-}" ]; then MP_PANEL_DOMAIN=$(to_punycode "$MP_PANEL_DOMAIN"); fi
 if [ -n "${MP_NODE_DOMAIN:-}" ] && ! valid_domain "$MP_NODE_DOMAIN"; then die "MP_NODE_DOMAIN 域名格式不对：$MP_NODE_DOMAIN"; fi
 if [ -n "${MP_PANEL_DOMAIN:-}" ] && ! valid_domain "$MP_PANEL_DOMAIN"; then die "MP_PANEL_DOMAIN 域名格式不对：$MP_PANEL_DOMAIN"; fi
 if [ -n "${MP_QUOTA_GB:-}" ]; then case "$MP_QUOTA_GB" in *[!0-9]*) die "MP_QUOTA_GB 须为数字（GB，0 = 不限）。";; esac; fi
@@ -180,6 +202,9 @@ if [ -n "${MP_PANEL_PORT:-}" ]; then case "$MP_PANEL_PORT" in *[!0-9]*) die "MP_
 if [ -n "${MP_NODE_PORT:-}" ]; then case "$MP_NODE_PORT" in *[!0-9]*) die "MP_NODE_PORT 须为数字（1-65535）。";; *) if [ "$MP_NODE_PORT" -lt 1 ] || [ "$MP_NODE_PORT" -gt 65535 ]; then die "MP_NODE_PORT 须在 1-65535 之间。"; fi;; esac; fi
 while :; do
   prompt NODE_DOMAIN "① 节点域名（VLESS / HY2 共用，须已解析到本机 IP）" "$OLD_NODE"
+  _old_domain="$NODE_DOMAIN"
+  NODE_DOMAIN=$(to_punycode "$NODE_DOMAIN")
+  [ "$NODE_DOMAIN" != "$_old_domain" ] && info "中文域名已转 punycode：$NODE_DOMAIN"
   if valid_domain "$NODE_DOMAIN"; then break; fi
   warn "域名格式不对，请重新输入（例如 node.example.com）。"
 done
@@ -189,6 +214,9 @@ BASE_DOMAIN="${NODE_DOMAIN#*.}"
 DEF_PANEL="${OLD_PANEL:-panel.$BASE_DOMAIN}"
 while :; do
   prompt PANEL_DOMAIN "② 面板域名（默认 panel.$BASE_DOMAIN）" "$DEF_PANEL"
+  _old_domain="$PANEL_DOMAIN"
+  PANEL_DOMAIN=$(to_punycode "$PANEL_DOMAIN")
+  [ "$PANEL_DOMAIN" != "$_old_domain" ] && info "中文域名已转 punycode：$PANEL_DOMAIN"
   if valid_domain "$PANEL_DOMAIN"; then break; fi
   warn "域名格式不对，请重新输入（例如 panel.example.com）。"
 done
