@@ -340,13 +340,17 @@ def server_traffic_status():
     return out
 
 
+# No server-specific defaults here on purpose: vless_port, hy2_port and
+# quota_gb differ per host (D1: 52318 / 10468 / 3000 GB; D2: 443 / 10468 /
+# 2000 GB), so a missing node.json key must NOT silently become a D2-era
+# value (the old defaults were 443 / 443 / 2000). load_node() returns only
+# what node.json actually contains plus these neutral fields; callers that
+# need a port must read it from the installed config and fail loudly if
+# it is absent (see local_hy2_link / rotate_vless).
 DEFAULT_NODE = {
     "domain": "",
     "panel_domain": "",
-    "vless_port": 443,
-    "hy2_port": 443,
     "reality_sni": "www.apple.com",
-    "quota_gb": 2000,
     "iface": "eth0",
 }
 
@@ -889,9 +893,14 @@ def local_hy2_link(username, pw):
     if obfs:
         q = "obfs=salamander&obfs-password=%s&sni=%s" % (
             urllib.parse.quote(obfs, safe=""), domain)
+    # No silent port fallback: hy2_port comes from the installed node.json
+    # (D1: 10468). A missing key is a broken install, not a 443 default.
+    hy2_port = node.get("hy2_port")
+    if not hy2_port:
+        raise RuntimeError("node.json 缺少 hy2_port，无法生成本地 HY2 链接")
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain,
-               node["hy2_port"], q, name))
+               hy2_port, q, name))
 
 
 def local_server_name():
@@ -905,7 +914,15 @@ def local_server_name():
 def remote_hy2_link(server, username, pw):
     d = remote_read(server)
     domain = to_idna(d.get("domain") or server.get("host", ""))
-    port = d.get("hy2_port") or 443
+    # No silent 443 fallback: the port comes from the agent's read output
+    # (the remote node's own hy2_port), then servers.json if ever stored
+    # there; if neither has it, fail loudly instead of building a link
+    # to the wrong port.
+    port = d.get("hy2_port") or server.get("hy2_port")
+    if not port:
+        raise RuntimeError(
+            "远程服务器 %s 未上报 hy2_port，无法生成 HY2 链接"
+            % (server.get("id") or server.get("host") or "?"))
     name = server.get("name") or "远程"
     q = "sni=%s" % domain
     if d.get("obfs_enabled") and d.get("obfs_password"):
@@ -973,8 +990,12 @@ def user_links(username):
     # adaptive multi-server views (and server_names for the name payload).
     by_id = {e["id"]: e for e in out}
     local = by_id.get("local", {})
-    remote = by_id.get("d1") or next(
-        (e for e in out if e["id"] != "local"), {})
+    # Flat d2/d1 fields: the user page reads d.d2 / d.d1 / d.vless_d2 /
+    # d.vless_d1 directly. The keys are legacy field names only (kept so
+    # the frontend needs no change): "d2" is always the local server and
+    # "d1" is always the first remote server, whatever its id is now
+    # (on the D1 host the remote is "d2", so no literal "d1" id exists).
+    remote = next((e for e in out if e["id"] != "local"), {})
     server_names = [{"id": e["id"], "name": e["name"]} for e in out]
     return {"d2": local.get("link"), "d1": remote.get("link"),
             "vless_d2": local.get("vless_link"),
@@ -1171,12 +1192,17 @@ def rotate_vless():
         with open(SINGBOX_CFG) as f:
             cfg = json.load(f)
         found = False
+        vless_port = None
         for ib in cfg.get("inbounds", []):
             if ib.get("type") == "vless" and ib.get("tag") == "vless-in":
                 users = ib.get("users", [])
                 if users:
                     users[0]["uuid"] = new_uuid
                     found = True
+                # The port sing-box actually listens on (D1: 52318).
+                # Never hardcode 443 here: on D1 the check would always
+                # fail and the rotation would roll back every time.
+                vless_port = ib.get("listen_port")
         if not found:
             raise RuntimeError("vless inbound/user not found in sing-box config")
         with open(SINGBOX_CFG, "w") as f:
@@ -1184,7 +1210,12 @@ def rotate_vless():
             f.write("\n")
         run("systemctl restart sing-box")
         time.sleep(2)
-        if not service_active("sing-box") or not tcp_listening(443):
+        check_port = vless_port or load_node().get("vless_port")
+        if not check_port:
+            raise RuntimeError(
+                "sing-box vless-in 未配置 listen_port 且 node.json 缺少 "
+                "vless_port，无法确认重启后监听状态")
+        if not service_active("sing-box") or not tcp_listening(check_port):
             raise RuntimeError("sing-box did not come back up after restart")
     except Exception:
         run("cp %s.bak-rotate %s" % (SINGBOX_CFG, SINGBOX_CFG))
@@ -1285,7 +1316,15 @@ def remote_vless_link(server, d):
     # Punycode the server domain (same as HY2 links): a Chinese domain in
     # the link breaks some clients' handshake, cf. the HY2 SNI lesson.
     domain = to_idna(d.get("domain") or server.get("host", ""))
-    port = d.get("vless_port") or 443
+    # No silent 443 fallback: the port comes from the agent's read output
+    # (the remote node's own vless_port), then servers.json if ever stored
+    # there; if neither has it, fail loudly instead of building a link
+    # to the wrong port.
+    port = d.get("vless_port") or server.get("vless_port")
+    if not port:
+        raise RuntimeError(
+            "远程服务器 %s 未上报 vless_port，无法生成 VLESS 链接"
+            % (server.get("id") or server.get("host") or "?"))
     name = server.get("name") or "远程"
     if d.get("vless_security") == "reality":
         r = d.get("reality") or {}
@@ -1310,6 +1349,15 @@ def remote_links(server):
 
 def remote_status(server):
     d = remote_read(server)
+    # quota_gb: the agent's read output carries the remote node's own
+    # quota (from its node.json); fall back to this server's quota_gb in
+    # servers.json. Without it the remote traffic card silently showed
+    # the local quota (3000 on D1 instead of the remote's 2000).
+    quota = d.get("quota_gb") or server.get("quota_gb")
+    try:
+        quota_gb = float(quota) if quota else None
+    except (TypeError, ValueError):
+        quota_gb = None
     return {
         "domain": d.get("domain", ""),
         "singbox": "active" if d["singbox"] else "inactive",
@@ -1318,6 +1366,7 @@ def remote_status(server):
         "today": d.get("today", {}),
         "month": d.get("month", ""),
         "cert": d["cert"],
+        "quota_gb": quota_gb,
         # Threshold-linked traffic note (same field as /api/data).
         "disable_threshold_pct": load_alerts()["disable_threshold_pct"],
         "alert_threshold_pct": load_alerts()["alert_threshold_pct"],
@@ -1340,10 +1389,13 @@ def remote_rotate_vless(server):
     return remote_links(server)["vless"]
 
 
-# Backwards-compatible aliases: the old /api/d1/* endpoints address the
-# server with id "d1" when it exists, otherwise the first remote server.
+# Backwards-compatible aliases: the /api/d1/* endpoints address the first
+# remote server, whatever its id is. (On the D1 host the only remote is
+# "d2"; there is no server with id "d1", so no literal "d1" lookup here.)
+# The URL paths /api/d1/* are kept unchanged — only the id lookup inside
+# is removed — so the frontend needs no change.
 def d1_server():
-    return remote_server("d1") or first_remote()
+    return first_remote()
 
 
 def _parse_ts(s):
