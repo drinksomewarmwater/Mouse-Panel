@@ -615,8 +615,7 @@
     <div class="confirm-modal-title">添加用户</div>
     <div id="add-user-fields">
       <div class="confirm-modal-field"><label>用户名（2-32 位，支持中文、字母、数字、下划线和横线）</label><input id="au-name" type="text" placeholder="比如 小明 或 xiaoming"></div>
-      <div class="confirm-modal-field"><label id="au-limit-local-label">Debian-2 每月上限（GB，留空 = 不限）</label><input id="au-limit-local" type="number" min="0" step="1" placeholder="留空不限"></div>
-      <div class="confirm-modal-field"><label id="au-limit-d1-label">Debian-1 每月上限（GB，留空 = 不限）</label><input id="au-limit-d1" type="number" min="0" step="1" placeholder="留空不限"></div>
+      <div id="au-limit-fields"></div>
       <div class="confirm-modal-field"><label>到期时间（可选，点开滚轮选年月日）</label><button type="button" class="log-wheel-field empty" id="au-expires-btn">永久</button></div>
     </div>
     <div class="err" id="add-user-err"></div>
@@ -634,6 +633,7 @@
       <li>中文域名部署时自动转 punycode：安装时输入的节点域名 / 面板域名（含 MP_NODE_DOMAIN、MP_PANEL_DOMAIN 环境变量）若含中文，写入配置前自动转成 punycode 再保存；面板里添加 / 修改服务器时填的主机域名同样先转码再保存，之后所有地方用的都是 ASCII 域名</li>
       <li>本地 HY2 链接支持 salamander 混淆：本地节点的链接现在也带 obfs 参数（与远程节点一致），有混淆的节点不会再丢参数</li>
       <li>端口跳跃功能已删除：跳跃区间从用户网络根本走不通，实测只会让 HY2 超时；服务器设置与修改权限里的跳跃开关都已去掉，HY2 只用单个节点端口</li>
+      <li>修复面板迁到 D1 后流量限制键错位：前端曾把 D2 时代的服务器键写死在用户表与上限表单里，D1 的上限显示成不限、改上限会写错键；现在上限与用量都按服务器列表的真实 id 读写，添加用户与修改权限的上限输入按每台服务器动态生成</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1369,15 +1369,20 @@ function permGo(fn) {
   var u = permUser;
   if (u) fn(u, btn);
 }
-function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwChange, pending, hy2Password, btn) {
-  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password };
+/* 修改权限弹窗：行里的当前值从 usersByName 取（loadUsers 每次刷新都
+   更新它），不再用 onclick 内联参数传——每台服务器的上限是一个对象，
+   不是两个数字。 */
+function showPermModal(username, btn) {
+  var x = usersByName[username] || {};
+  var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
+  var u = { username: username, limits: x.limits || {}, expiresAt: x.expires_at, enabled: x.enabled, allowPwChange: x.allow_pw_change !== 0, hy2Password: pending ? '未设置' : (x.hy2_password || '—') };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
   var box = document.getElementById('perm-modal-actions');
   box.innerHTML = '';
   var items = [
-    { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limD1, u.limLocal, b); } },
+    { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limits, b); } },
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
     { label: '轮换凭证', fn: function(u, b){ rotateUserCreds(u.username, b); } },
@@ -1625,9 +1630,18 @@ function sortServers(list) {
   return arr; // Array.sort is stable: remotes keep their add order
 }
 
+/* View keys are layout slots, not server ids: 'd2' is the LOCAL server's
+   view, 'd1' is the FIRST REMOTE server's view (the /api/d1/* aliases
+   address the first remote). Any further remote gets the placeholder
+   view until it has a real one. */
+function firstRemoteServer() {
+  for (var i = 0; i < SERVERS.length; i++) if (!isLocalServer(SERVERS[i])) return SERVERS[i];
+  return null;
+}
 function serverViewKey(s) {
-  if (s.id === 'd1') return 'd1';
-  if (s.id === 'local') return 'd2';
+  if (isLocalServer(s)) return 'd2';
+  var fr = firstRemoteServer();
+  if (fr && fr.id === s.id) return 'd1';
   return 'remote:' + s.id;
 }
 function serverById(id) {
@@ -1640,14 +1654,19 @@ function adminServerName(id, fallback) {
   var s = serverById(id);
   return s ? s.name : fallback;
 }
+/* Short D1/D2 label for a server, derived from its display name
+   (Debian-US -> D1, Debian-KR -> D2); falls back to the name itself so a
+   renamed server still shows something sensible. */
+function serverShortLabel(s) {
+  var n = (s && s.name) || '';
+  if (/-US$/i.test(n)) return 'D1';
+  if (/-KR$/i.test(n)) return 'D2';
+  return n || (s && s.id) || '';
+}
 function d1CardTitle(kind) {
   return kind; // node card titles show protocol only, no server name
 }
 function applyAdminServerNames() {
-  var ll = document.getElementById('au-limit-local-label');
-  if (ll) ll.textContent = adminServerName('local', 'Debian-2') + ' 每月上限（GB，留空 = 不限）';
-  var ld = document.getElementById('au-limit-d1-label');
-  if (ld) ld.textContent = adminServerName('d1', 'Debian-1') + ' 每月上限（GB，留空 = 不限）';
   var t1 = document.querySelector('#card-d1vless .card-name');
   if (t1) t1.textContent = d1CardTitle('VLESS + TLS');
   var t2 = document.querySelector('#card-d1hy2 .card-name');
@@ -1660,7 +1679,8 @@ function applyAdminServerNames() {
 var d1LinksFailed = false;
 var d1StatusFailed = false;
 function renderD1Errors() {
-  var n = adminServerName('d1', 'Debian-1');
+  var fr = firstRemoteServer();
+  var n = fr ? fr.name : 'Debian-1';
   if (d1LinksFailed) {
     document.getElementById('link-d1vless').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
     document.getElementById('link-d1hy2').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
@@ -2956,13 +2976,26 @@ function switchUserServer(which) {
    user endpoints (never hardcoded, never /api/servers which is admin-only).
    Static HTML keeps Debian-2/Debian-1 as pre-load fallback labels. ---- */
 var userServerNames = {};
-function userServerName(key) {
-  return userServerNames[key] || (key === 'd1' ? 'Debian-1' : 'Debian-2');
+function userServerName(id) {
+  if (id && userServerNames[id]) return userServerNames[id];
+  return id || '';
+}
+/* The user page has two view slots: 'local' (the local server) and 'd1'
+   (the FIRST REMOTE server). Resolve a slot to the real server id from
+   the server_names payload, so limits/usage are read under the right key
+   on either host. */
+function userSlotServerId(slot) {
+  if (slot === 'local') return 'local';
+  var ids = Object.keys(userServerNames);
+  for (var i = 0; i < ids.length; i++) if (ids[i] !== 'local') return ids[i];
+  return null;
 }
 function applyUserServerNames() {
   // switcher buttons (static HTML, local first -- order untouched, labels only)
   document.querySelectorAll('#user-switcher .switcher-btn').forEach(function (b) {
-    b.textContent = userServerName(b.getAttribute('data-user-server'));
+    var slot = b.getAttribute('data-user-server');
+    var sid = slot === 'local' ? 'local' : userSlotServerId('d1');
+    b.textContent = userServerName(sid || slot);
   });
   // node card titles: protocol only, no server name
   var titles = [
@@ -2992,14 +3025,17 @@ function renderUser() {
   if (!u) return;
   applyUserNamesPayload(u);
   // each server has its own traffic card + disabled card + link cards, so
-  // render both inner views; switching only swaps which view is visible
-  ['d1', 'local'].forEach(function (key) {
-    var suf = key;
-    var serverName = userServerName(key);
-    var sv = (u.servers && u.servers[key]) ? u.servers[key] : null;
+  // render both inner views; switching only swaps which view is visible.
+  // The slots are 'd1' (first remote) and 'local'; the real server id for
+  // each slot comes from the server_names payload (see userSlotServerId).
+  [['d1', userSlotServerId('d1')], ['local', 'local']].forEach(function (pair) {
+    var suf = pair[0];
+    var sid = pair[1];
+    var serverName = userServerName(sid || suf);
+    var sv = (sid && u.servers && u.servers[sid]) ? u.servers[sid] : null;
     var mt = sv ? sv.month_total : (u.month_total || 0);
     var tt = sv ? sv.today_total : (u.today_total || 0);
-    var lim = u.limits ? u.limits[key] : u.limit_gb;
+    var lim = (sid && u.limits) ? u.limits[sid] : u.limit_gb;
     document.getElementById('u-month-' + suf).textContent = fmtAuto(mt);
     document.getElementById('u-limit-' + suf).textContent = lim == null ? '不限' : lim + ' GB';
     document.getElementById('u-left-' + suf).textContent = lim == null ? '不限' : fmtAuto(Math.max(0, lim * 1e9 - mt));
@@ -3008,7 +3044,7 @@ function renderUser() {
     document.getElementById('u-today-tx-' + suf).textContent = fmtAuto(sv ? sv.today_tx : (u.today_tx || 0));
     document.getElementById('u-note-' + suf).textContent = serverName + ' · 本月 ' + (u.month || '—') + ' · 今日 ' + (u.today || '—') + ' · 每月 1 号 00:00 重新计算';
     var badge = document.getElementById('u-badge-' + suf);
-    var disabledHere = u.disabled && u.disabled[key];
+    var disabledHere = sid && u.disabled && u.disabled[sid];
     var over = lim != null && mt >= lim * 1e9;
     if (!u.enabled) { badge.textContent = u.disabled_reason === 'over_limit' ? '已超限停用' : '已停用'; badge.className = 'badge down'; }
     else if (disabledHere) { badge.textContent = '本台已超限停用'; badge.className = 'badge down'; }
@@ -3018,8 +3054,8 @@ function renderUser() {
     document.getElementById('u-bar-' + suf).style.width = Math.min(pct, 100) + '%';
     var dc = document.getElementById('user-disabled-card-' + suf);
     var dm = document.getElementById('user-disabled-msg-' + suf);
-    var c1 = document.getElementById(key === 'd1' ? 'user-card-d1' : 'user-card-d2');
-    var c2 = document.getElementById(key === 'd1' ? 'user-card-vless-d1' : 'user-card-vless-d2');
+    var c1 = document.getElementById(suf === 'd1' ? 'user-card-d1' : 'user-card-d2');
+    var c2 = document.getElementById(suf === 'd1' ? 'user-card-vless-d1' : 'user-card-vless-d2');
     if (!u.enabled) {
       c1.classList.add('hidden'); c2.classList.add('hidden');
       dc.classList.remove('hidden');
@@ -3093,9 +3129,11 @@ function expiryCell(x) {
 }
 /* ---- 状态列：只分三档。故障 = 任一台超限（已停用或当前已超）；停用 = 账号
    未启用或待设置密码；其余正常。 ---- */
-function userStatus(x, overD1, overLocal, pending) {
+function userStatus(x, overAny, pending) {
   var dis = x.disabled || {};
-  if (dis.d1 || dis.local || overD1 || overLocal || x.disabled_reason === 'over_limit') return { text: '故障', cls: 'bad' };
+  var anyDisabled = false;
+  Object.keys(dis).forEach(function (k) { if (dis[k]) anyDisabled = true; });
+  if (anyDisabled || overAny || x.disabled_reason === 'over_limit') return { text: '故障', cls: 'bad' };
   if (!x.enabled || pending) return { text: '停用', cls: 'bad' };
   return { text: '正常', cls: '' };
 }
@@ -3114,8 +3152,39 @@ function copySubLink(username, btn) {
     })
     .catch(function (e) { showToast('获取订阅链接失败：' + e.message, true); });
 }
+/* Per-server limit / usage lines for a user-table row, keyed by the real
+   server ids from SERVERS (local first). Labels stay D1/D2 (derived from
+   the server display name: *-US -> D1, *-KR -> D2). */
+function svLimitLines(lim) {
+  return sortServers(SERVERS).map(function (s) {
+    var v = lim ? lim[s.id] : null;
+    return '<div class="sv-line"><span class="sv-k">' + esc(serverShortLabel(s)) + '</span><span>' + (v == null ? '不限' : v + ' GB') + '</span></div>';
+  }).join('');
+}
+function svMonthLines(sv) {
+  return sortServers(SERVERS).map(function (s) {
+    var m = (sv && sv[s.id]) ? sv[s.id].month_total : 0;
+    return '<div class="sv-line"><span class="sv-k">' + esc(serverShortLabel(s)) + '</span><span>' + fmtAuto(m) + '</span></div>';
+  }).join('');
+}
+function svOverAny(lim, sv) {
+  var over = false;
+  sortServers(SERVERS).forEach(function (s) {
+    var v = lim ? lim[s.id] : null;
+    var m = (sv && sv[s.id]) ? sv[s.id].month_total : 0;
+    if (v != null && m >= v * 1e9) over = true;
+  });
+  return over;
+}
+/* Latest admin-users payload, keyed by username: the 修改权限 dialog reads
+   the row's current values from here instead of inline onclick arguments
+   (per-server limits are an object, not two numbers). */
+var usersByName = {};
 function loadUsers() {
   var wrap = document.getElementById('users-table-wrap');
+  /* The server list drives the per-server columns; make sure it is loaded
+     before rendering (loadServers is a cheap refresh once the list is in). */
+  loadServers().then(function () {
   fetch('/api/admin/users', { cache: 'no-store' })
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){
@@ -3123,35 +3192,27 @@ function loadUsers() {
       var admin = null;
       var users = [];
       all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
+      usersByName = {};
+      all.forEach(function (x) { usersByName[x.username] = x; });
       var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>订阅</th><th>操作</th></tr>';
       if (admin) {
-        // 管理员的每月上限与本月已用也按普通用户（公用）的格式：D1 / D2 各一行。
-        var aLim = admin.limits || {};
-        var aSv = admin.servers || {};
-        var aLimHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + (aLim.d1 == null ? '不限' : aLim.d1 + ' GB') + '</span></div>'
-          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (aLim.local == null ? '不限' : aLim.local + ' GB') + '</span></div>';
-        var aMonthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(aSv.d1 ? aSv.d1.month_total : 0) + '</span></div>'
-          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(aSv.local ? aSv.local.month_total : 0) + '</span></div>';
+        // 管理员的每月上限与本月已用也按普通用户（公用）的格式：每台服务器各一行。
+        var aLimHtml = svLimitLines(admin.limits || {});
+        var aMonthHtml = svMonthLines(admin.servers || {});
         html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'admin\', this)">复制订阅</button></td>'
           + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
       }
       users.forEach(function(x){
         var lim = x.limits || {};
-        var limHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + (lim.d1 == null ? '不限' : lim.d1 + ' GB') + '</span></div>'
-          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + (lim.local == null ? '不限' : lim.local + ' GB') + '</span></div>';
+        var limHtml = svLimitLines(lim);
         var sv = x.servers || {};
-        var mD1 = sv.d1 ? sv.d1.month_total : 0;
-        var mLocal = sv.local ? sv.local.month_total : 0;
-        var monthHtml = '<div class="sv-line"><span class="sv-k">D1</span><span>' + fmtAuto(mD1) + '</span></div>'
-          + '<div class="sv-line"><span class="sv-k">D2</span><span>' + fmtAuto(mLocal) + '</span></div>';
-        var overD1 = lim.d1 != null && mD1 >= lim.d1 * 1e9;
-        var overLocal = lim.local != null && mLocal >= lim.local * 1e9;
+        var monthHtml = svMonthLines(sv);
+        var overAny = svOverAny(lim, sv);
         var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
-        var pw = pending ? '未设置' : esc(x.hy2_password || '—');
-        var st = userStatus(x, overD1, overLocal, pending);
+        var st = userStatus(x, overAny, pending);
         html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button></td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this)">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', this)">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3162,6 +3223,7 @@ function loadUsers() {
       wrap.innerHTML = html;
     })
     .catch(function(){ wrap.innerHTML = '<div class="err">用户列表加载失败，请刷新重试</div>'; });
+  });
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
@@ -3179,11 +3241,29 @@ function auSetExpires(val) {
   if (val) { b.textContent = val; b.classList.remove('empty'); }
   else { b.textContent = '永久'; b.classList.add('empty'); }
 }
+/* 添加用户弹窗的上限输入：每台服务器一个（SERVERS 顺序），input 带
+   data-server-id，提交时按真实服务器 id 键入。 */
+function auLimitFields() {
+  var box = document.getElementById('au-limit-fields');
+  box.innerHTML = '';
+  sortServers(SERVERS).forEach(function (s) {
+    var div = document.createElement('div');
+    div.className = 'confirm-modal-field';
+    var label = document.createElement('label');
+    label.textContent = s.name + ' 每月上限（GB，留空 = 不限）';
+    var input = document.createElement('input');
+    input.type = 'number'; input.min = '0'; input.step = '1';
+    input.placeholder = '留空不限';
+    input.setAttribute('data-server-id', s.id);
+    div.appendChild(label);
+    div.appendChild(input);
+    box.appendChild(div);
+  });
+}
 function showAddUserModal(btn) {
   addUserSrcBtn = btn;
   document.getElementById('au-name').value = '';
-  document.getElementById('au-limit-d1').value = '';
-  document.getElementById('au-limit-local').value = '';
+  auLimitFields();
   document.getElementById('add-user-err').textContent = '';
   auSetExpires(null);
   var ok = document.getElementById('add-user-ok');
@@ -3221,12 +3301,21 @@ function showAddUserExpiryWheel(btn) {
 }
 function submitAddUser() {
   var name = document.getElementById('au-name').value.trim();
-  var limD1 = document.getElementById('au-limit-d1').value.trim();
-  var limLocal = document.getElementById('au-limit-local').value.trim();
   var err = document.getElementById('add-user-err');
   err.textContent = '';
   if (!name) { err.textContent = '用户名必填。'; return; }
-  var body = { username: name, limits: { d1: limD1 === '' ? null : Number(limD1), local: limLocal === '' ? null : Number(limLocal) } };
+  var limits = {};
+  var badLimit = false;
+  document.querySelectorAll('#au-limit-fields input').forEach(function (inp) {
+    var raw = (inp.value || '').trim();
+    var sid = inp.getAttribute('data-server-id');
+    if (raw === '') { limits[sid] = null; return; }
+    var n = Number(raw);
+    if (!(n > 0)) { badLimit = true; return; }
+    limits[sid] = n;
+  });
+  if (badLimit) { err.textContent = '上限须为正数，或留空表示不限。'; return; }
+  var body = { username: name, limits: limits };
   if (auExpires) body.expires_at = auExpires;
   var ok = document.getElementById('add-user-ok');
   ok.disabled = true;
@@ -3250,17 +3339,26 @@ document.getElementById('add-user-cancel').addEventListener('click', hideAddUser
 document.getElementById('add-user-ok').addEventListener('click', submitAddUser);
 document.getElementById('au-expires-btn').addEventListener('click', function () { showAddUserExpiryWheel(this); });
 
-function setLimit(username, curD1, curLocal, btn) {
+function setLimit(username, curLimits, btn) {
   showConfirm(
     '设置 ' + username + ' 的每月流量上限',
     '按台分别填，单位 GB，留空表示不限。某台超限只停那台的节点。',
     btn,
     function(v){
       if (v === undefined) return;
-      var d1 = (v[0] || '').trim();
-      var local = (v[1] || '').trim();
-      var body = { limits: { d1: d1 === '' ? null : Number(d1), local: local === '' ? null : Number(local) } };
-      if ((d1 !== '' && !(body.limits.d1 > 0)) || (local !== '' && !(body.limits.local > 0))) { showToast('上限须为正数，或留空表示不限。', true); return; }
+      /* v 与 inputs 一一对应（SERVERS 顺序）；上限对象按真实服务器 id
+         键入，API 只认 all_server_ids() 里的键。 */
+      var limits = {};
+      var bad = false;
+      sortServers(SERVERS).forEach(function (s, i) {
+        var raw = (v[i] || '').trim();
+        if (raw === '') { limits[s.id] = null; return; }
+        var n = Number(raw);
+        if (!(n > 0)) { bad = true; return; }
+        limits[s.id] = n;
+      });
+      if (bad) { showToast('上限须为正数，或留空表示不限。', true); return; }
+      var body = { limits: limits };
       fetch('/api/admin/users/' + encodeURIComponent(username) + '/limit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
         .then(function(res){
@@ -3269,10 +3367,10 @@ function setLimit(username, curD1, curLocal, btn) {
         })
         .catch(function(e){ showToast('设置失败：' + e.message, true); });
     },
-    { inputs: [
-      { label: adminServerName('d1', 'Debian-1') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curD1 == null ? '' : String(curD1) },
-      { label: adminServerName('local', 'Debian-2') + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: curLocal == null ? '' : String(curLocal) },
-    ] }
+    { inputs: sortServers(SERVERS).map(function (s) {
+      var cur = curLimits ? curLimits[s.id] : null;
+      return { label: s.name + ' 上限（GB）', type: 'text', placeholder: 'GB，留空表示不限', value: cur == null ? '' : String(cur) };
+    }) }
   );
 }
 
