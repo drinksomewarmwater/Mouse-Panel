@@ -2403,6 +2403,8 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json()
             name = (body.get("name") or "").strip()
             host = (body.get("host") or "").strip()
+            # 中文域名先转 punycode 再校验、再保存；IP 与 ASCII 域名原样通过。
+            host = to_idna(host)
             port = body.get("port")
             if not name or len(name) > 32:
                 self._json(400, {"error": "名字须为 1–32 个字符"})
@@ -2665,6 +2667,16 @@ class Handler(BaseHTTPRequestHandler):
         if not name or len(name) > 32:
             self._json(400, {"error": "名字须为 1–32 个字符"})
             return
+        # Optional host: only acted on when the caller sends one (the panel
+        # UI currently sends name + quota only). A Chinese domain is
+        # converted to punycode before saving, same as POST.
+        host = body.get("host")
+        if host is not None:
+            host = to_idna((host or "").strip())
+            if (not host or len(host) > 253 or host.startswith("-")
+                    or not re.fullmatch(r"[A-Za-z0-9_.\-:]+", host)):
+                self._json(400, {"error": "主机须为 IP 或域名"})
+                return
         # Monthly quota (GB), optional. null clears it back to the install
         # default / agent value. A number must be 1-1000000.
         quota = body.get("quota_gb", None)
@@ -2686,6 +2698,8 @@ class Handler(BaseHTTPRequestHandler):
                 for s in servers:
                     if s.get("id") == sid:
                         s["name"] = name
+                        if host is not None and s.get("type") == "remote":
+                            s["host"] = host
                         if quota_given:
                             if quota is None:
                                 s.pop("quota_gb", None)
