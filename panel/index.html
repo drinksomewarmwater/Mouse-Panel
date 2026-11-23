@@ -632,6 +632,8 @@
     <div class="confirm-modal-title" id="version-modal-title">V1.1.4 更新日志</div>
     <ul class="version-list">
       <li>中文域名部署时自动转 punycode：安装时输入的节点域名 / 面板域名（含 MP_NODE_DOMAIN、MP_PANEL_DOMAIN 环境变量）若含中文，写入配置前自动转成 punycode 再保存；面板里添加 / 修改服务器时填的主机域名同样先转码再保存，之后所有地方用的都是 ASCII 域名</li>
+      <li>本地 HY2 链接支持 salamander 混淆：本地节点的链接现在也带 obfs 参数（与远程节点一致），有混淆的节点不会再丢参数</li>
+      <li>端口跳跃功能已删除：跳跃区间从用户网络根本走不通，实测只会让 HY2 超时；服务器设置与修改权限里的跳跃开关都已去掉，HY2 只用单个节点端口</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -650,16 +652,13 @@
   </div>
 </div>
 
-<!-- 二级弹窗：单个 VPS 的设置（名字、每月额度、端口跳跃；远程服务器可删除） -->
+<!-- 二级弹窗：单个 VPS 的设置（名字、每月额度；远程服务器可删除） -->
 <div class="confirm-modal" id="srv-modal">
   <div class="confirm-modal-card" id="srv-modal-card">
     <div class="confirm-modal-title" id="srv-modal-title">服务器设置</div>
     <div id="srv-fields">
       <div class="confirm-modal-field"><label>名字</label><input id="srv-name" type="text" maxlength="32"></div>
       <div class="confirm-modal-field"><label>每月额度（GB，留空 = 不限）</label><input id="srv-quota" type="number" min="1" max="1000000" step="1" placeholder="GB"></div>
-      <div class="confirm-modal-field"><label>端口跳跃（UDP 区间，留空 = 关闭）</label><input id="srv-hop" type="text" placeholder="20000-40000"></div>
-      <div class="meta" id="srv-hop-status" style="margin-bottom:10px;"></div>
-      <div class="hint">开启后 HY2 不再监听单个端口，改为监听该 UDP 区间，链接会带 mport 参数；需在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。</div>
       <div class="meta" id="srv-info"></div>
     </div>
     <div class="confirm-modal-btns">
@@ -1370,8 +1369,8 @@ function permGo(fn) {
   var u = permUser;
   if (u) fn(u, btn);
 }
-function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwChange, pending, hy2Password, btn, hop) {
-  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password, hop: hop };
+function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwChange, pending, hy2Password, btn) {
+  var u = { username: username, limD1: limD1, limLocal: limLocal, expiresAt: expiresAt, enabled: enabled, allowPwChange: allowPwChange, hy2Password: hy2Password };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
@@ -1381,7 +1380,6 @@ function showPermModal(username, limD1, limLocal, expiresAt, enabled, allowPwCha
     { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limD1, u.limLocal, b); } },
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
-    { label: '端口跳跃', fn: function(u, b){ setHop(u.username, u.hop, b); } },
     { label: '轮换凭证', fn: function(u, b){ rotateUserCreds(u.username, b); } },
   ];
   if (!pending) {
@@ -1677,9 +1675,6 @@ function renderD1Errors() {
 function applyUpdated(ts) {
   document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (ts || '—'); });
 }
-/* ---- HY2 端口跳跃：每台服务器的 hop_range，由 /api/alerts 的 servers 条目
-   提供（loadAlerts 里更新）；单个 VPS 设置弹窗用它回填跳跃输入框。 ---- */
-var HOP_BY_ID = {};
 function loadServers() {
   return fetch('/api/servers', { cache: 'no-store' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -1745,7 +1740,7 @@ var serversSrcBtn = null;
 function showServersModal(btn) {
   serversSrcBtn = btn;
   renderServersMenu();
-  loadAlerts(); // 后台刷新 HOP_BY_ID 与预警弹窗里的字段
+  loadAlerts(); // 后台刷新预警弹窗里的字段
   modalShow(serversModal, serversModalCard, btn);
 }
 function hideServersModal() {
@@ -1836,7 +1831,7 @@ function srvMenuAddServer(btn) {
     ] }
   );
 }
-/* 二级：单个 VPS 设置（专用弹窗：名字、每月额度、端口跳跃；远程可删） */
+/* 二级：单个 VPS 设置（专用弹窗：名字、每月额度；远程可删） */
 var srvModal = document.getElementById('srv-modal');
 var srvModalCard = document.getElementById('srv-modal-card');
 var srvSrcBtn = null;
@@ -1849,12 +1844,9 @@ function showSrvModal(id, btn) {
   document.getElementById('srv-modal-title').textContent = s.name + ' 设置';
   document.getElementById('srv-name').value = s.name;
   document.getElementById('srv-quota').value = (s.quota_gb == null ? '' : s.quota_gb);
-  document.getElementById('srv-hop').value = HOP_BY_ID[id] || '';
-  document.getElementById('srv-hop-status').textContent = HOP_BY_ID[id] ? ('已开启：' + HOP_BY_ID[id]) : '未开启';
   document.getElementById('srv-info').textContent = (s.type === 'local' ? '本地' : '远程') + (s.host ? ' · ' + s.host + (s.port ? ':' + s.port : '') : '');
   document.getElementById('srv-del-btn').style.display = (s.type === 'local' ? 'none' : '');
   modalShow(srvModal, srvModalCard, btn);
-  loadAlerts(); // 后台刷新一次 hop_range（/api/alerts 是权威来源）
 }
 function hideSrvModal() {
   modalHide(srvModal, srvModalCard, srvSrcBtn);
@@ -1879,19 +1871,11 @@ function saveSrvModal(btn) {
   } else {
     body.quota_gb = null;
   }
-  var hop = (document.getElementById('srv-hop').value || '').trim();
-  if (hop !== '' && !/^\d+-\d+$/.test(hop)) { showToast('跳跃区间须为 起-止，例如 20000-40000，留空表示关闭。', true); return; }
   btn.disabled = true;
   fetch('/api/servers/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
-      return fetch('/api/servers/' + encodeURIComponent(id) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop_range: hop }) })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
-    })
-    .then(function (res) {
-      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
-      HOP_BY_ID[id] = res.d.hop_range || '';
       return loadServers().then(function () {
         renderServersMenu();
         loadAlerts();
@@ -1900,7 +1884,7 @@ function saveSrvModal(btn) {
           if (s) document.getElementById('remote-title').textContent = s.name;
         }
         hideSrvModal();
-        showToast('已保存。' + (HOP_BY_ID[id] ? '端口跳跃已开启：' + HOP_BY_ID[id] + '，记得在云厂商防火墙放行该区间 UDP。' : ''));
+        showToast('已保存。');
       });
     })
     .catch(function (e) { showToast('保存失败：' + e.message, true); })
@@ -1976,17 +1960,6 @@ function loadAlerts() {
       document.getElementById('al-alert').value = d.alert_threshold_pct;
       document.getElementById('al-disable').value = d.disable_threshold_pct;
       var html = d.telegram_configured ? 'Telegram 已配置' : 'Telegram 未配置（填好 Token 与 Chat ID 后才能发提醒）';
-      HOP_BY_ID = {};
-      (d.servers || []).forEach(function (s) { HOP_BY_ID[s.id] = s.hop_range || ''; });
-      // 单个 VPS 设置弹窗正开着时，把刚取到的跳跃区间回填进去（用户没在输时）。
-      if (srvCurrentId) {
-        var hopInp = document.getElementById('srv-hop');
-        if (hopInp && document.activeElement !== hopInp) {
-          var hop = HOP_BY_ID[srvCurrentId] || '';
-          hopInp.value = hop;
-          document.getElementById('srv-hop-status').textContent = hop ? ('已开启：' + hop) : '未开启';
-        }
-      }
       sortServers(d.servers || []).forEach(function (s) {
         var pct = (s.pct == null) ? '—' : s.pct.toFixed(1) + '%';
         var used = (s.used_gb == null) ? '—' : s.used_gb.toFixed(2) + ' GB';
@@ -3178,7 +3151,7 @@ function loadUsers() {
         var st = userStatus(x, overD1, overLocal, pending);
         html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button></td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this, ' + (x.hop ? 'true' : 'false') + ')">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', ' + (lim.d1 == null ? 'null' : lim.d1) + ', ' + (lim.local == null ? 'null' : lim.local) + ', ' + (x.expires_at == null ? 'null' : x.expires_at) + ', ' + (x.enabled ? 'true' : 'false') + ', ' + (x.allow_pw_change !== 0) + ', ' + (pending ? 'true' : 'false') + ', \'' + pw + '\', this)">修改权限</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3341,29 +3314,6 @@ function showExpiryWheel(username, curExpiresAt, btn) {
 }
 function setExpiry(username, curExpiresAt, btn) {
   showExpiryWheel(username, curExpiresAt, btn);
-}
-
-function setHop(username, curHop, btn) {
-  showConfirm(
-    '设置 ' + username + ' 的端口跳跃',
-    '开启后，该用户的 HY2 链接会带上 mport 参数、走端口跳跃；关闭则只用单个节点端口。\n只有服务器开了跳跃区间时才生效（服务器设置里配）；开跳跃前须先在云厂商防火墙放行该区间的 UDP，否则 HY2 连不上。',
-    btn,
-    function(v){
-      if (v === undefined) return;
-      var hop = !!v[0];
-      fetch('/api/admin/users/' + encodeURIComponent(username) + '/hop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hop: hop ? 1 : 0 }) })
-        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
-        .then(function(res){
-          if (!res.ok) throw new Error((res.d && res.d.error) || '设置失败');
-          loadUsers();
-          showToast(hop ? '端口跳跃已开启，链接已带 mport。' : '端口跳跃已关闭，链接改回单个端口。');
-        })
-        .catch(function(e){ showToast('设置失败：' + e.message, true); });
-    },
-    { inputs: [
-      { label: '开启端口跳跃', type: 'checkbox', value: curHop !== false }
-    ] }
-  );
 }
 
 function resetPw(username, btn, allowPwChange, curPw) {
