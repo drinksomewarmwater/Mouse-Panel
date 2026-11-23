@@ -53,7 +53,7 @@ IFACE=$(ip route 2>/dev/null | grep -m1 '^default' | awk '{print $5}')
 
 # ---------- 交互提问 ----------
 info "把这台服务器接进 Mouse Panel，需要确认几项信息。"
-OLD_DOMAIN=""; OLD_VPORT="443"; OLD_HPORT="443"; OLD_SEC="reality"; OLD_CERT=""
+OLD_DOMAIN=""; OLD_VPORT=""; OLD_HPORT=""; OLD_SEC="reality"; OLD_CERT=""
 if [ -f /etc/mouse-panel-agent.conf ]; then
   # shellcheck disable=SC1091
   OLD_DOMAIN=$(grep -E '^DOMAIN=' /etc/mouse-panel-agent.conf | cut -d= -f2- | tr -d '"'"'")
@@ -62,6 +62,19 @@ if [ -f /etc/mouse-panel-agent.conf ]; then
   OLD_SEC=$(grep -E '^VLESS_SECURITY=' /etc/mouse-panel-agent.conf | cut -d= -f2-)
   OLD_CERT=$(grep -E '^SINGBOX_CERT=' /etc/mouse-panel-agent.conf | cut -d= -f2-)
 fi
+# 端口默认值：优先用已记录的值，其次从本机现成的节点配置里读
+# （sing-box 的 VLESS listen_port、Hysteria 的 listen 端口），读不到才用
+# 提问时的默认值。下面的 443（VLESS）/ 10468（HY2）只是提问时的默认值，
+# 不是写死值——agent 本身（remote-agent.py）不认任何默认端口，配置里缺了
+# 会直接报错，必须在这里把端口问清楚、写进配置文件。
+if [ -z "$OLD_VPORT" ] && [ -f /etc/sing-box/config.json ]; then
+  OLD_VPORT=$(jq -r '.inbounds[] | select(.type=="vless") | .listen_port // empty' /etc/sing-box/config.json 2>/dev/null | head -1)
+fi
+case "$OLD_VPORT" in ''|*[!0-9]*) OLD_VPORT="";; esac
+if [ -z "$OLD_HPORT" ] && [ -f /etc/hysteria/config.yaml ]; then
+  OLD_HPORT=$(grep -E '^listen:' /etc/hysteria/config.yaml 2>/dev/null | head -1 | grep -oE '[0-9]+[[:space:]]*$' | tr -d ' ')
+fi
+case "$OLD_HPORT" in ''|*[!0-9]*) OLD_HPORT="";; esac
 # 节点域名：优先从 sing-box / hysteria 配置里已有的域名推断，没推断到再问。
 if [ -z "$OLD_DOMAIN" ] && [ -f /etc/sing-box/config.json ]; then
   OLD_DOMAIN=$(grep -oE '"server_name"[[:space:]]*:[[:space:]]*"[^"]+"' /etc/sing-box/config.json | head -1 | cut -d'"' -f4)
@@ -75,9 +88,19 @@ while :; do
   esac
 done
 prompt VLESS_PORT "② VLESS 端口" "${OLD_VPORT:-443}"
-prompt HY2_PORT "③ Hysteria 2 端口" "${OLD_HPORT:-443}"
+prompt HY2_PORT "③ Hysteria 2 端口" "${OLD_HPORT:-10468}"
 prompt VLESS_SEC "④ VLESS 安全方式（reality / tls）" "${OLD_SEC:-reality}"
 case "$VLESS_SEC" in reality|tls) ;; *) die "安全方式只能是 reality 或 tls。" ;; esac
+# 节点证书路径：优先用已记录的值，其次按本机实际存在的文件定
+# （acme.sh 布局 / Hysteria 证书 / sing-box 证书 / Hysteria 自带 ACME）；
+# 都不存在才提示 acme.sh 默认路径——那只是提问时的默认值，agent 不认默认路径。
+if [ -z "$OLD_CERT" ]; then
+  for _cand in "/root/.acme.sh/${NODE_DOMAIN}_ecc/fullchain.cer" \
+      /etc/hysteria/certs/fullchain.cer /etc/sing-box/certs/fullchain.cer \
+      /etc/hysteria/acme/certificates/*/"${NODE_DOMAIN}"/"${NODE_DOMAIN}.crt"; do
+    if [ -f "$_cand" ]; then OLD_CERT="$_cand"; break; fi
+  done
+fi
 DEF_CERT="${OLD_CERT:-/root/.acme.sh/${NODE_DOMAIN}_ecc/fullchain.cer}"
 prompt SINGBOX_CERT "⑤ 节点证书路径（用于显示到期时间，可空用默认）" "$DEF_CERT"
 [ -n "$SINGBOX_CERT" ] || SINGBOX_CERT="/etc/sing-box/certs/fullchain.cer"
@@ -126,7 +149,7 @@ SINGBOX_CERT=$SINGBOX_CERT
 EOF
 ok "agent 配置已写入 /etc/mouse-panel-agent.conf。"
 
-# ---------- 授权钥匙（带强制命令限制，只能跑面板用的 5 条命令） ----------
+# ---------- 授权钥匙（带强制命令限制，只能跑面板用的 7 条命令） ----------
 mkdir -p /root/.ssh && chmod 700 /root/.ssh
 touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
 KEY_BODY=$(echo "$PANEL_PUBKEY" | awk '{print $1" "$2}')
