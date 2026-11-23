@@ -80,12 +80,26 @@ def authenticate(auth):
     users = _load_users()
     matched_info = None
     if isinstance(auth, str) and auth:
+        # Hysteria2 links carry a username prefix (e.g. admin:<password>)
+        # and some clients (ClashMeta, v2rayNG/sing-box) send the whole
+        # "username:password" as the auth string. The old userpass auth
+        # accepted that form; accept it here too by also trying the part
+        # after the first ":". The stored passwords are 32-hex tokens
+        # (no ":"), so stripping the prefix is unambiguous.
+        candidates = [auth]
+        if ":" in auth:
+            candidates.append(auth.split(":", 1)[1])
         for username, info in users.items():
             if not isinstance(info, dict):
                 continue
             pw = info.get("password")
-            if isinstance(pw, str) and pw and hmac.compare_digest(pw.encode(), auth.encode()):
-                matched_info = info
+            if not (isinstance(pw, str) and pw):
+                continue
+            for cand in candidates:
+                if cand and hmac.compare_digest(pw.encode(), cand.encode()):
+                    matched_info = info
+                    break
+            if matched_info is not None:
                 break
     if matched_info is None:
         _record_failure(now)
