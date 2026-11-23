@@ -20,11 +20,6 @@ elif [ "$SSH_ORIGINAL_COMMAND" = "python3 /usr/local/bin/remote-agent.py vless-s
 elif [ "$SSH_ORIGINAL_COMMAND" = "python3 /usr/local/bin/remote-agent.py hy2-online" ]; then
   exec python3 /usr/local/bin/remote-agent.py hy2-online
 else
-  case "$SSH_ORIGINAL_COMMAND" in
-    "python3 /usr/local/bin/remote-agent.py hy2-hop "*)
-      exec python3 /usr/local/bin/remote-agent.py hy2-hop "${SSH_ORIGINAL_COMMAND#python3 /usr/local/bin/remote-agent.py hy2-hop }"
-      ;;
-  esac
   echo "remote-agent-gate: command not allowed" >&2
   exit 1
 fi
