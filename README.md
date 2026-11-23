@@ -338,6 +338,7 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 - 节点卡片的端口与协议文字改成按实时链接推导：本地 VLESS 显示 TCP 52318、远程 VLESS 显示 REALITY + TCP 443、HY2 显示 UDP 10468，不再是写死的 D2 时代文字；链接本身不变。
 - 默认值与端口 fallback 不再悄悄用 D2 的值：节点配置缺键时报错而不是默认 443/443/2000；远程链接端口缺失时报错；`/api/d1/*` 不再按字面 id `d1` 查服务器，改为首台远程；预加载的服务器名 fallback 改成中性的“本地 / 远程”。
 - 安装脚本支持 VLESS 与 HY2 分端口：新增 `MP_VLESS_PORT` / `MP_HY2_PORT`（优先于共用的 `MP_NODE_PORT`），默认值与证书路径按实际布局推导；agent 里已死的 userpass 版 `rotate_hy2` 已删除，gate 里的放行项同步清理。
+- 修复 HY2 鉴权拒掉带用户名的密码串：链接是 `admin:<密码>` 的形式，部分客户端（ClashMeta、v2rayNG/sing-box）会把整个 `admin:<密码>` 当鉴权串发过来；旧 userpass 鉴权认这种形式，改成 HTTP 鉴权后只做精确匹配就给拒了（表现为以前通、后来不通）。现在鉴权时也试冒号后的密码部分，两种形式都认。
 
 ### V1.1.3 (2026-11-18)
 
