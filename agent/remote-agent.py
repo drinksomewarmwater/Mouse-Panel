@@ -4,12 +4,16 @@
 Runs on a remote server, invoked over SSH by a mouse-panel API. Nothing here
 is stored on the panel box: the API reads the values fresh on every panel load.
 Configuration comes from /etc/mouse-panel-agent.conf (KEY=VALUE, written by
-agent/install-agent.sh); every key has a sane default so the agent also
-works with no config file at all.
+agent/install-agent.sh). VLESS_PORT / HY2_PORT are required there:
+install-agent.sh derives them from the live sing-box / Hysteria configs
+when it writes the file. If a port is missing from the conf, the agent
+reads it from the service's own config instead of silently assuming 443,
+and fails loudly if neither source has it — a wrong default port would
+produce wrong node links and a false "service down" verdict.
 Subcommands:
   read              print JSON: vless_uuid, hy2_password, obfs_password,
                     domain, ports, services, traffic (vnstat month), cert expiry
-  rotate vless|hy2  rotate the credential, restart the service, verify,
+  rotate vless      rotate the credential, restart the service, verify,
                     print {"ok": true, "value": new} or {"ok": false, "error": ...}
   hystats           print the Hysteria /traffic JSON (per-user tx/rx)
   hy2-online        print the hy2-auth online-IP tracker JSON
@@ -20,7 +24,6 @@ Subcommands:
 import json
 import os
 import re
-import secrets
 import subprocess
 import sys
 import time
@@ -57,8 +60,80 @@ def _default_iface():
 
 
 DOMAIN = CONF.get("DOMAIN", "")
-VLESS_PORT = int(CONF.get("VLESS_PORT", "443"))
-HY2_PORT = int(CONF.get("HY2_PORT", "443"))
+
+
+def _port_from_service_config(kind):
+    """Read the live node port from the service's own config.
+
+    vless: sing-box config.json listen_port of the vless inbound.
+    hy2: Hysteria config.yaml top-level `listen:` line.
+    Returns None when the config is missing or has no usable port.
+    """
+    if kind == "vless":
+        try:
+            with open(SINGBOX_CFG) as f:
+                cfg = json.load(f)
+            for ib in cfg.get("inbounds", []):
+                if ib.get("type") == "vless":
+                    port = ib.get("listen_port")
+                    return int(port) if port else None
+        except (OSError, ValueError, TypeError):
+            return None
+        return None
+    try:
+        with open(HYSTERIA_CFG) as f:
+            text = f.read()
+    except OSError:
+        return None
+    m = re.search(r"(?m)^listen:\s*:(\d+)\s*$", text)
+    if not m:
+        m = re.search(r"(?m)^listen:\s*\S+:(\d+)\s*$", text)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+_PORT_CACHE = {}
+
+
+def _require_port(key, kind):
+    """Port for `key`: agent conf first, live service config second.
+
+    Never silently defaults to 443: a missing value means the install
+    never recorded the ports — fail loudly instead of serving wrong
+    links. Re-run agent/install-agent.sh to record them.
+    """
+    if key in _PORT_CACHE:
+        return _PORT_CACHE[key]
+    raw = CONF.get(key, "")
+    if raw:
+        try:
+            port = int(raw)
+        except ValueError:
+            raise RuntimeError("%s in %s is not a port number: %r" % (key, AGENT_CONF, raw))
+        if not 1 <= port <= 65535:
+            raise RuntimeError("%s in %s is out of range 1-65535: %r" % (key, AGENT_CONF, raw))
+        _PORT_CACHE[key] = port
+        return port
+    port = _port_from_service_config(kind)
+    if port is None:
+        raise RuntimeError(
+            "%s is not set in %s and could not be read from the %s server "
+            "config; re-run agent/install-agent.sh to record it"
+            % (key, AGENT_CONF, kind))
+    _PORT_CACHE[key] = port
+    return port
+
+
+def get_vless_port():
+    return _require_port("VLESS_PORT", "vless")
+
+
+def get_hy2_port():
+    return _require_port("HY2_PORT", "hy2")
 
 # Port hopping was removed 2026-11-23 (V1.1.4): the hop range never
 # worked from the user's networks. HY2 now always uses its single node
@@ -210,8 +285,8 @@ def read_all():
         pass
     return {
         "domain": DOMAIN,
-        "vless_port": VLESS_PORT,
-        "hy2_port": HY2_PORT,
+        "vless_port": get_vless_port(),
+        "hy2_port": get_hy2_port(),
         "vless_security": security,
         "reality": reality,
         "obfs_enabled": obfs_enabled,
@@ -230,11 +305,6 @@ def read_all():
 
 def tcp_listening(port):
     rc, _, _ = run("ss -ltn | grep -q ':%d '" % port)
-    return rc == 0
-
-
-def udp_listening(port):
-    rc, _, _ = run("ss -lun | grep -q ':%d '" % port)
     return rc == 0
 
 
@@ -259,7 +329,7 @@ def rotate_vless(cfg_path=SINGBOX_CFG, restart=True):
         if restart:
             run("systemctl restart sing-box")
             time.sleep(2)
-            if run("systemctl is-active sing-box")[1] != "active" or not tcp_listening(VLESS_PORT):
+            if run("systemctl is-active sing-box")[1] != "active" or not tcp_listening(get_vless_port()):
                 raise RuntimeError("sing-box did not come back up after restart")
     except Exception:
         run("cp %s.bak-rotate %s" % (cfg_path, cfg_path))
@@ -269,34 +339,9 @@ def rotate_vless(cfg_path=SINGBOX_CFG, restart=True):
     return new_uuid
 
 
-def rotate_hy2(cfg_path=HYSTERIA_CFG, restart=True):
-    new_pw = secrets.token_hex(16)
-    run("cp %s %s.bak-rotate" % (cfg_path, cfg_path))
-    try:
-        with open(cfg_path) as f:
-            text = f.read()
-        pat = re.compile(r'(userpass:\s*\n\s+admin:\s*")[^"]+(")')
-        new_text, n = pat.subn(r"\g<1>" + new_pw + r"\g<2>", text)
-        if n != 1:
-            raise RuntimeError("userpass admin line not found or ambiguous in hysteria config")
-        with open(cfg_path, "w") as f:
-            f.write(new_text)
-        if restart:
-            run("systemctl restart hysteria-server")
-            time.sleep(2)
-            if run("systemctl is-active hysteria-server")[1] != "active" or not udp_listening(HY2_PORT):
-                raise RuntimeError("hysteria-server did not come back up after restart")
-    except Exception:
-        run("cp %s.bak-rotate %s" % (cfg_path, cfg_path))
-        if restart:
-            run("systemctl restart hysteria-server")
-        raise
-    return new_pw
-
-
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "error": "usage: remote-agent.py read | rotate vless|hy2 | hystats | vless-sync | vless-stats"}))
+        print(json.dumps({"ok": False, "error": "usage: remote-agent.py read | rotate vless | hystats | vless-sync | vless-stats"}))
         return 1
     if sys.argv[1] == "vless-sync":
         # Rewrite the sing-box VLESS user inbounds from a users JSON on
@@ -377,9 +422,9 @@ def main():
         except OSError:
             print("{}")
             return 0
-    if sys.argv[1] == "rotate" and len(sys.argv) >= 3 and sys.argv[2] in ("vless", "hy2"):
+    if sys.argv[1] == "rotate" and len(sys.argv) >= 3 and sys.argv[2] == "vless":
         try:
-            value = rotate_vless() if sys.argv[2] == "vless" else rotate_hy2()
+            value = rotate_vless()
             print(json.dumps({"ok": True, "value": value}))
             return 0
         except Exception as e:
