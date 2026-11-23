@@ -331,8 +331,8 @@
   <div class="view hidden" id="view-user">
   <div class="switcher" id="user-switcher">
     <span class="switcher-pill" id="user-switcher-pill"></span>
-    <button class="switcher-btn active" data-user-server="local" onclick="switchUserServer('local')">Debian-2</button>
-    <button class="switcher-btn" data-user-server="d1" onclick="switchUserServer('d1')">Debian-1</button>
+    <button class="switcher-btn active" data-user-server="local" onclick="switchUserServer('local')">本地</button>
+    <button class="switcher-btn" data-user-server="d1" onclick="switchUserServer('d1')">远程</button>
   </div>
   <div class="view" id="view-user-d1">
   <div class="card">
@@ -358,7 +358,7 @@
 
   <div class="card" id="user-card-d1">
     <h2>Hysteria 2</h2>
-    <div class="meta">官方 Hysteria 2 · UDP 10468</div>
+    <div class="meta">官方 Hysteria 2</div>
     <div class="linkbox" id="u-link-d1">加载中…</div>
     <div class="btns">
       <div class="btnrow">
@@ -369,8 +369,8 @@
   </div>
 
   <div class="card" id="user-card-vless-d1">
-    <h2>VLESS + TLS</h2>
-    <div class="meta">sing-box · VLESS + TLS（端口在链接里）</div>
+    <h2>VLESS</h2>
+    <div class="meta">sing-box · VLESS（端口在链接里）</div>
     <div class="linkbox" id="u-link-vless-d1">加载中…</div>
     <div class="btns">
       <div class="btnrow">
@@ -404,7 +404,7 @@
 
   <div class="card" id="user-card-d2">
     <h2>Hysteria 2</h2>
-    <div class="meta">官方 Hysteria 2 · UDP 443</div>
+    <div class="meta">官方 Hysteria 2</div>
     <div class="linkbox" id="u-link-d2">加载中…</div>
     <div class="btns">
       <div class="btnrow">
@@ -415,8 +415,8 @@
   </div>
 
   <div class="card" id="user-card-vless-d2">
-    <h2>VLESS + REALITY</h2>
-    <div class="meta">sing-box · VLESS + Reality（端口在链接里）</div>
+    <h2>VLESS</h2>
+    <div class="meta">sing-box · VLESS（端口在链接里）</div>
     <div class="linkbox" id="u-link-vless-d2">加载中…</div>
     <div class="btns">
       <div class="btnrow">
@@ -435,7 +435,7 @@
       <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t-total">…</div></div>
       <div><div class="k">入站</div><div class="v" id="t-rx">…</div></div>
       <div><div class="k">出站</div><div class="v" id="t-tx">…</div></div>
-      <div><div class="k">月度额度</div><div class="v" id="t-quota">2000 GB</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t-quota">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
       <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d-total">…</div></div>
@@ -457,13 +457,13 @@
   </div>
 
   <div class="card" id="card-vless">
-    <h2>VLESS + REALITY <span class="badge" data-svc="sing-box">…</span></h2>
-    <div class="meta">sing-box · TCP 443 · SNI www.apple.com</div>
+    <h2><span class="card-name">VLESS</span> <span class="badge" data-svc="sing-box">…</span></h2>
+    <div class="meta">sing-box · VLESS（端口在链接里）</div>
     <div class="linkbox" id="link-vless">加载中…</div>
     <div class="btns">
       <div class="btnrow">
         <button onclick="copyText('link-vless', this)">一键复制链接</button>
-        <button onclick="showQR('link-vless', 'VLESS + REALITY', this)">点击显示二维码</button>
+        <button onclick="showQR('link-vless', localVlessTitle(), this)">点击显示二维码</button>
         <button class="danger small" onclick="rotateLink('vless', this)">轮换凭证（旧链接失效）</button>
       </div>
     </div>
@@ -471,7 +471,7 @@
 
   <div class="card" id="card-hy2">
     <h2>Hysteria 2 <span class="badge" data-svc="hysteria-server">…</span></h2>
-    <div class="meta">官方 Hysteria 2 · UDP 443</div>
+    <div class="meta">官方 Hysteria 2</div>
     <div class="linkbox" id="link-hy2">加载中…</div>
     <div class="btns">
       <div class="btnrow">
@@ -490,7 +490,7 @@
       <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t1-total">…</div></div>
       <div><div class="k">入站</div><div class="v" id="t1-rx">…</div></div>
       <div><div class="k">出站</div><div class="v" id="t1-tx">…</div></div>
-      <div><div class="k">月度额度</div><div class="v" id="t1-quota">3000 GB</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t1-quota">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
       <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d1-total">…</div></div>
@@ -511,13 +511,13 @@
   </div>
 
   <div class="card" id="card-d1vless">
-    <h2><span class="card-name">VLESS + TLS</span> <span class="badge" data-d1svc="singbox">…</span></h2>
-    <div class="meta">sing-box · TCP 52318</div>
+    <h2><span class="card-name">VLESS</span> <span class="badge" data-d1svc="singbox">…</span></h2>
+    <div class="meta">sing-box · VLESS（端口在链接里）</div>
     <div class="linkbox" id="link-d1vless">加载中…</div>
     <div class="btns">
       <div class="btnrow">
         <button onclick="copyText('link-d1vless', this)">一键复制链接</button>
-        <button onclick="showQR('link-d1vless', d1CardTitle('VLESS + TLS'), this)">点击显示二维码</button>
+        <button onclick="showQR('link-d1vless', d1CardTitle(), this)">点击显示二维码</button>
         <button class="danger small" onclick="rotateD1('vless', this)">轮换凭证（旧链接失效）</button>
       </div>
     </div>
@@ -525,12 +525,12 @@
 
   <div class="card" id="card-d1hy2">
     <h2><span class="card-name">Hysteria 2</span> <span class="badge" data-d1svc="hysteria">…</span></h2>
-    <div class="meta">官方 Hysteria 2 · UDP 10468</div>
+    <div class="meta">官方 Hysteria 2</div>
     <div class="linkbox" id="link-d1hy2">加载中…</div>
     <div class="btns">
       <div class="btnrow">
         <button onclick="copyText('link-d1hy2', this)">一键复制链接</button>
-        <button onclick="showQR('link-d1hy2', d1CardTitle('Hysteria 2'), this)">点击显示二维码</button>
+        <button onclick="showQR('link-d1hy2', 'Hysteria 2', this)">点击显示二维码</button>
         <button class="danger small" onclick="rotateD1('hy2', this)">轮换凭证（旧链接失效）</button>
       </div>
     </div>
@@ -634,6 +634,11 @@
       <li>本地 HY2 链接支持 salamander 混淆：本地节点的链接现在也带 obfs 参数（与远程节点一致），有混淆的节点不会再丢参数</li>
       <li>端口跳跃功能已删除：跳跃区间从用户网络根本走不通，实测只会让 HY2 超时；服务器设置与修改权限里的跳跃开关都已去掉，HY2 只用单个节点端口</li>
       <li>修复面板迁到 D1 后流量限制键错位：前端曾把 D2 时代的服务器键写死在用户表与上限表单里，D1 的上限显示成不限、改上限会写错键；现在上限与用量都按服务器列表的真实 id 读写，添加用户与修改权限的上限输入按每台服务器动态生成</li>
+      <li>修复流量卡额度显示反了：线上数据采集脚本不写额度、远程状态接口漏掉额度，两处写死的 fallback 恰好是旧值；现在本地额度从节点配置读、远程额度从 agent 回传里带，两处 fallback 都按服务器列表动态取，公开流量页也不再显示“不限”</li>
+      <li>修复管理员 VLESS 轮换凭证在 D1 上必定失败：重启检查曾写死 443 端口，D1 的 VLESS 在 52318；现在按 sing-box 配置里 vless-in 的实际监听端口检查</li>
+      <li>节点卡片的端口与协议文字改成按实时链接推导：本地 VLESS 显示 TCP 52318、远程 VLESS 显示 REALITY + TCP 443、HY2 显示 UDP 10468，不再是写死的 D2 时代文字；链接本身不变</li>
+      <li>默认值与端口 fallback 不再悄悄用 D2 的值：节点配置缺键时报错而不是默认 443/443/2000；远程链接端口缺失时报错；预加载的服务器名 fallback 改成中性的“本地 / 远程”</li>
+      <li>安装脚本支持 VLESS 与 HY2 分端口：新增 MP_VLESS_PORT / MP_HY2_PORT；agent 里已死的 userpass 版 rotate_hy2 已删除</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1050,16 +1055,99 @@ function makeQR(elId, text) {
   }
 }
 
+/* ---- node card meta/title: derived from the live, API-generated links ----
+   Static HTML metas are port-free protocol-only fallbacks. Once a link
+   loads, the card shows the real port + security parsed from that link
+   (vless://…@host:PORT?security=reality|tls…&sni=…,
+   hysteria2://…@host:PORT?...). The link is the source of truth, so a
+   host flip can never leave a stale port/security on a card; no port or
+   security is hardcoded anywhere in this block. If a status payload also
+   carries vless_port/vless_security/hy2_port, applyNodeCardFromStatus()
+   (called from the status renderers) overrides with those same values. */
+function parseVlessLink(link) {
+  if (!link || typeof link !== 'string') return null;
+  var m = link.match(/^vless:\/\/[^@]+@[^:]+:(\d+)\?([^#]*)/);
+  if (!m) return null;
+  var q = {};
+  m[2].split('&').forEach(function (kv) {
+    var p = kv.split('=');
+    if (p[0]) { try { q[p[0]] = decodeURIComponent(p[1] || ''); } catch (e) { q[p[0]] = p[1] || ''; } }
+  });
+  return { port: +m[1] || null, security: q.security || null, sni: q.sni || null };
+}
+function parseHy2Port(link) {
+  if (!link || typeof link !== 'string') return null;
+  var m = link.match(/^hysteria2:\/\/[^@]+@[^:]+:(\d+)/);
+  return m ? (+m[1] || null) : null;
+}
+function vlessTitleFrom(info) {
+  if (info && info.security === 'reality') return 'VLESS + REALITY';
+  if (info && info.security === 'tls') return 'VLESS + TLS';
+  return 'VLESS';
+}
+function vlessMetaFrom(info) {
+  if (!info || !info.port) return 'sing-box · VLESS（端口在链接里）';
+  var t = 'sing-box · TCP ' + info.port;
+  if (info.security === 'reality' && info.sni) t += ' · SNI ' + info.sni;
+  return t;
+}
+function hy2MetaFrom(port) {
+  return port ? '官方 Hysteria 2 · UDP ' + port : '官方 Hysteria 2';
+}
+function setCardText(sel, txt) {
+  var el = document.querySelector(sel);
+  if (el) el.textContent = txt;
+}
+/* One card pair (VLESS + HY2) from a VLESS link, a HY2 link, or explicit
+   status fields (vless_port/vless_security/hy2_port) when the status
+   payload carries them; links win when both are present. */
+function applyNodeCards(prefix, vlessLink, hy2Link, st) {
+  var info = parseVlessLink(vlessLink);
+  if (st) {
+    if (!info) info = {};
+    if (st.vless_port) info.port = +st.vless_port || info.port;
+    if (st.vless_security) info.security = st.vless_security;
+    if (st.reality && st.reality.sni) info.sni = st.reality.sni;
+  }
+  setCardText(prefix + 'vless .card-name', vlessTitleFrom(info));
+  setCardText(prefix + 'vless .meta', vlessMetaFrom(info && info.port ? info : null));
+  var hp = parseHy2Port(hy2Link);
+  if (st && st.hy2_port) hp = +st.hy2_port || hp;
+  setCardText(prefix + 'hy2 .meta', hy2MetaFrom(hp));
+}
+/* Admin cards: local pair from /api/links, remote pair from /api/d1/links. */
+function applyAdminNodeCards() {
+  applyNodeCards('#card-', LINKS && LINKS.vless, LINKS && LINKS.hy2, null);
+  applyNodeCards('#card-d1', LINKS1 && LINKS1.vless, LINKS1 && LINKS1.hy2, null);
+}
+/* User cards: 'd2' slot is the local server, 'd1' slot the first remote. */
+function applyUserNodeCards(d) {
+  if (!d) return;
+  var lv = parseVlessLink(d.vless_d2);
+  setCardText('#user-card-vless-d2 h2', vlessTitleFrom(lv));
+  setCardText('#user-card-vless-d2 .meta', vlessMetaFrom(lv));
+  var rv = parseVlessLink(d.vless_d1);
+  setCardText('#user-card-vless-d1 h2', vlessTitleFrom(rv));
+  setCardText('#user-card-vless-d1 .meta', vlessMetaFrom(rv));
+  setCardText('#user-card-d2 .meta', hy2MetaFrom(parseHy2Port(d.d2)));
+  setCardText('#user-card-d1 .meta', hy2MetaFrom(parseHy2Port(d.d1)));
+}
+function localVlessTitle() {
+  return vlessTitleFrom(parseVlessLink(LINKS && LINKS.vless));
+}
+
 function renderLinks() {
   if (!LINKS) return;
   document.getElementById('link-vless').textContent = LINKS.vless;
   document.getElementById('link-hy2').textContent = LINKS.hy2;
+  applyAdminNodeCards();
 }
 
 function renderD1Links() {
   if (!LINKS1) return;
   document.getElementById('link-d1vless').textContent = LINKS1.vless;
   document.getElementById('link-d1hy2').textContent = LINKS1.hy2;
+  applyAdminNodeCards();
 }
 
 // QR modal: scales up from the button to the center (with blur), dims the background;
@@ -1612,8 +1700,8 @@ loadPanelName();
 /* ---- servers: adaptive single/multi tabs + settings (admin) ---- */
 var currentView = 'd2';
 var SERVERS = [
-  { id: 'local', name: '示例服务器 A', type: 'local' },
-  { id: 'd1', name: '示例服务器 B', type: 'remote', host: '203.0.113.10', port: 22 },
+  { id: 'local', name: '本地服务器', type: 'local' },
+  { id: 'd1', name: '远程服务器', type: 'remote', host: '203.0.113.10', port: 22 },
 ];
 /* ---- server order: local first, remotes in add order (servers.json order).
    Only render order changes; servers.json storage order is untouched. ---- */
@@ -1648,6 +1736,22 @@ function serverById(id) {
   for (var i = 0; i < SERVERS.length; i++) if (SERVERS[i].id === id) return SERVERS[i];
   return null;
 }
+/* Monthly quota fallback, from /api/servers (servers.json), never a
+   hardcoded host-era number: the local server's quota_gb, or the first
+   remote server's quota_gb. Returns null when no server entry carries
+   one (the traffic renderers then show '—' instead of a wrong number).
+   loadServers() re-renders the stored traffic payloads once the list
+   arrives, so a payload that landed first still gets the right quota. */
+var lastAdminData = null;
+var lastD1Status = null;
+function serverQuota(which) {
+  var s = which === 'local' ? null : firstRemoteServer();
+  if (which === 'local') {
+    for (var i = 0; i < SERVERS.length; i++) if (isLocalServer(SERVERS[i])) { s = SERVERS[i]; break; }
+  }
+  var q = s ? +s.quota_gb : NaN;
+  return (isFinite(q) && q > 0) ? q : null;
+}
 /* ---- admin server names follow renames (SERVERS is the source of truth).
    Static HTML keeps the old names only as a pre-load fallback. ---- */
 function adminServerName(id, fallback) {
@@ -1663,14 +1767,16 @@ function serverShortLabel(s) {
   if (/-KR$/i.test(n)) return 'D2';
   return n || (s && s.id) || '';
 }
-function d1CardTitle(kind) {
-  return kind; // node card titles show protocol only, no server name
+function d1CardTitle() {
+  /* Remote VLESS title from the live link (REALITY vs TLS); 'VLESS'
+     until the link loads. Never a hardcoded security. */
+  return vlessTitleFrom(parseVlessLink(LINKS1 && LINKS1.vless));
 }
 function applyAdminServerNames() {
   var t1 = document.querySelector('#card-d1vless .card-name');
-  if (t1) t1.textContent = d1CardTitle('VLESS + TLS');
+  if (t1) t1.textContent = d1CardTitle();
   var t2 = document.querySelector('#card-d1hy2 .card-name');
-  if (t2) t2.textContent = d1CardTitle('Hysteria 2');
+  if (t2) t2.textContent = 'Hysteria 2';
   renderD1Errors();
 }
 /* D1 failure text uses the live server name. loadAdmin() and loadServers()
@@ -1680,7 +1786,7 @@ var d1LinksFailed = false;
 var d1StatusFailed = false;
 function renderD1Errors() {
   var fr = firstRemoteServer();
-  var n = fr ? fr.name : 'Debian-1';
+  var n = fr ? fr.name : '远程';
   if (d1LinksFailed) {
     document.getElementById('link-d1vless').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
     document.getElementById('link-d1hy2').textContent = n + ' 链接加载失败（' + n + ' 未连通或读取失败），请刷新重试';
@@ -1702,6 +1808,10 @@ function loadServers() {
       if (d.servers && d.servers.length) SERVERS = d.servers;
       renderServerTabs();
       applyAdminServerNames();
+      /* Quota fallbacks read SERVERS: if a traffic payload landed before
+         the server list, re-render it now with the real quotas. */
+      if (lastAdminData) renderData(lastAdminData);
+      if (lastD1Status) renderD1Status(lastD1Status);
       return SERVERS;
     })
     .catch(function () { renderServerTabs(); return SERVERS; });
@@ -2502,17 +2612,22 @@ function alertPctOf(d, fallback) {
 }
 
 function renderData(d) {
+  lastAdminData = d;
   document.querySelectorAll('.updated').forEach(function(el){ el.textContent = '更新于 ' + (d.updated || '—'); });
   var t = d.traffic || {};
   var total = (t.rx || 0) + (t.tx || 0);
   document.getElementById('t-total').textContent = fmtGB(total);
   document.getElementById('t-rx').textContent = fmtGB(t.rx || 0);
   document.getElementById('t-tx').textContent = fmtGB(t.tx || 0);
-  var quota = (d.quota_gb != null && d.quota_gb > 0) ? d.quota_gb : 2000;
-  var pct = total / (quota * 1e9) * 100;
-  document.getElementById('t-quota').textContent = quota + ' GB';
+  /* Quota: payload first, else the local server's quota_gb from
+     /api/servers (servers.json) — never a hardcoded host-era number. */
+  var quota = (d.quota_gb != null && +d.quota_gb > 0) ? +d.quota_gb : serverQuota('local');
+  var pct = quota ? total / (quota * 1e9) * 100 : 0;
+  document.getElementById('t-quota').textContent = quota ? quota + ' GB' : '—';
   document.getElementById('t-bar').style.width = Math.min(pct, 100) + '%';
-  document.getElementById('t-note').textContent = '本月 ' + (t.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(d, 95), quota);
+  document.getElementById('t-note').textContent = quota
+    ? '本月 ' + (t.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(d, 95), quota)
+    : '本月 ' + (t.month || '—') + ' · 月度额度未设置';
   var td = t.today || {};
   var dTotal = (td.rx || 0) + (td.tx || 0);
   document.getElementById('d-total').textContent = fmtAuto(dTotal);
@@ -2552,16 +2667,26 @@ fetch('/api/data', { cache: 'no-store' })
   });
 
 function renderD1Status(s) {
+  lastD1Status = s;
   var t = s.traffic || {};
   var total = (t.rx || 0) + (t.tx || 0);
   document.getElementById('t1-total').textContent = fmtGB(total);
   document.getElementById('t1-rx').textContent = fmtGB(t.rx || 0);
   document.getElementById('t1-tx').textContent = fmtGB(t.tx || 0);
-  var quota = (s.quota_gb != null && s.quota_gb > 0) ? s.quota_gb : 3000;
-  var pct = total / (quota * 1e9) * 100;
-  document.getElementById('t1-quota').textContent = quota + ' GB';
+  /* Quota: payload first, else the first remote server's quota_gb from
+     /api/servers (servers.json) — never a hardcoded host-era number. */
+  var quota = (s.quota_gb != null && +s.quota_gb > 0) ? +s.quota_gb : serverQuota('remote');
+  var pct = quota ? total / (quota * 1e9) * 100 : 0;
+  document.getElementById('t1-quota').textContent = quota ? quota + ' GB' : '—';
   document.getElementById('t1-bar').style.width = Math.min(pct, 100) + '%';
-  document.getElementById('t1-note').textContent = '本月 ' + (s.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(s, 95), quota);
+  document.getElementById('t1-note').textContent = quota
+    ? '本月 ' + (s.month || '—') + ' · 已用 ' + pct.toFixed(2) + '%，剩 ' + Math.max(0, quota - total / 1e9).toFixed(2) + ' GB · ' + guardText(disablePctOf(s, 95), quota)
+    : '本月 ' + (s.month || '—') + ' · 月度额度未设置';
+  /* Node-card fields if the status payload carries them (same values as
+     the links); harmless when absent — the links already set the cards. */
+  if (s.vless_port || s.vless_security || s.hy2_port) {
+    applyNodeCards('#card-d1', LINKS1 && LINKS1.vless, LINKS1 && LINKS1.hy2, s);
+  }
   var td = s.today || {};
   var dTotal = (td.rx || 0) + (td.tx || 0);
   document.getElementById('d1-total').textContent = fmtAuto(dTotal);
@@ -2974,7 +3099,7 @@ function switchUserServer(which) {
 
 /* ---- user view: server display names come from servers.json via the
    user endpoints (never hardcoded, never /api/servers which is admin-only).
-   Static HTML keeps Debian-2/Debian-1 as pre-load fallback labels. ---- */
+   Static HTML keeps 本地/远程 as pre-load fallback labels. ---- */
 var userServerNames = {};
 function userServerName(id) {
   if (id && userServerNames[id]) return userServerNames[id];
@@ -2997,12 +3122,13 @@ function applyUserServerNames() {
     var sid = slot === 'local' ? 'local' : userSlotServerId('d1');
     b.textContent = userServerName(sid || slot);
   });
-  // node card titles: protocol only, no server name
+  // node card titles: protocol only ('VLESS' until the links load and
+  // applyUserNodeCards() derives REALITY/TLS from them), no server name
   var titles = [
     ['#user-card-d1 h2', 'd1', 'Hysteria 2'],
-    ['#user-card-vless-d1 h2', 'd1', 'VLESS + TLS'],
+    ['#user-card-vless-d1 h2', 'd1', 'VLESS'],
     ['#user-card-d2 h2', 'local', 'Hysteria 2'],
-    ['#user-card-vless-d2 h2', 'local', 'VLESS + REALITY'],
+    ['#user-card-vless-d2 h2', 'local', 'VLESS'],
   ];
   titles.forEach(function (t) {
     var el = document.querySelector(t[0]);
@@ -3079,6 +3205,8 @@ function renderUser() {
     document.getElementById('u-link-d1').textContent = d.d1 || '链接加载失败，请刷新重试';
     document.getElementById('u-link-vless-d2').textContent = d.vless_d2 || '链接加载失败，请刷新重试';
     document.getElementById('u-link-vless-d1').textContent = d.vless_d1 || '链接加载失败，请刷新重试';
+    /* Node-card ports/security from the live links (see applyUserNodeCards). */
+    applyUserNodeCards(d);
   }
 }
 function loadUser() {
