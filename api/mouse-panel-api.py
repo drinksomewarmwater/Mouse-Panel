@@ -64,16 +64,11 @@ PLAYLIST_PATH = "/var/lib/mouse-panel/playlist.json"
 PLAYLISTS_DIR = "/var/lib/mouse-panel/playlists"
 SERVERS_PATH = "/var/lib/mouse-panel/servers.json"
 
-# --- port hopping, upstream style (changed 2026-11-18) ---
-# Hysteria itself always listens on a SINGLE port now. Port hopping is done
-# by manual kernel redirect rules (NOT Hysteria's built-in listen-range,
-# which proved unreliable: its auto nftables/iptables rules left stale
-# conflicting entries after repeated toggles). The active range lives in
-# HOP_RANGE_PATH; the redirect rules live in HOP_NFT_PATH and are restored
-# at boot by hy2-hop.service. Empty/absent file = hopping off.
-HOP_RANGE_PATH = "/var/lib/mouse-panel/hop_range"
-HOP_NFT_PATH = "/etc/nftables-hy2-hop.nft"
-HOP_SERVICE_PATH = "/etc/systemd/system/hy2-hop.service"
+# Port hopping was removed 2026-11-23 (V1.1.4): the hop range never
+# worked from the user's networks (official Hysteria client tests from
+# both home networks: hop links always timed out, direct + obfs links
+# work). HY2 now always uses its single node port; the server-side hop
+# rules/files/services were deleted from both servers the same day.
 
 # --- runtime log (added 2026-11-16) ---
 # Dedicated rotating log for the API, exportable by the admin from the
@@ -313,10 +308,9 @@ def server_traffic_status():
         data = {}
     for s in load_servers():
         entry = {"id": s.get("id"), "name": s.get("name"), "quota_gb": None,
-                 "used_gb": None, "pct": None, "month": None, "hop_range": ""}
+                 "used_gb": None, "pct": None, "month": None}
         try:
             if s.get("type") == "local":
-                entry["hop_range"] = local_hop_range()
                 t = (data.get("traffic") or {})
                 total = (t.get("rx") or 0) + (t.get("tx") or 0)
                 entry["used_gb"] = total / 1e9
@@ -329,7 +323,6 @@ def server_traffic_status():
                     entry["quota_gb"] = None
             else:
                 d = remote_read(s)
-                entry["hop_range"] = d.get("hop_range", "")
                 t = d.get("traffic") or {}
                 total = (t.get("rx") or 0) + (t.get("tx") or 0)
                 entry["used_gb"] = total / 1e9
@@ -540,6 +533,9 @@ def ensure_user_columns():
         ("disabled_json", "ALTER TABLE users ADD COLUMN disabled_json TEXT"),
         ("allow_pw_change", "ALTER TABLE users ADD COLUMN allow_pw_change INTEGER NOT NULL DEFAULT 1"),
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
+        # "hop" is a leftover from the port-hopping feature (removed
+        # 2026-11-23, V1.1.4): the column stays in the schema so old DBs
+        # still load, but it is never read or written anymore.
         ("hop", "ALTER TABLE users ADD COLUMN hop INTEGER NOT NULL DEFAULT 1"),
         ("sub_token", "ALTER TABLE users ADD COLUMN sub_token TEXT"),
     ]:
@@ -718,7 +714,7 @@ def list_users():
     rows = conn.execute(
         "SELECT id, username, role, limit_gb, limits_json, disabled_json, enabled,"
         " disabled_reason, created_at, hy2_password, pw_set, vless_uuid, vless_port,"
-        " allow_pw_change, expires_at, hop"
+        " allow_pw_change, expires_at"
         " FROM users ORDER BY role DESC, username"
     ).fetchall()
     conn.close()
@@ -728,7 +724,6 @@ def list_users():
         d["limits"] = parse_limits(d)
         d["disabled"] = parse_disabled(d)
         d["expires_at"] = parse_expires_at(d)
-        d["hop"] = 1 if d.get("hop") is None else (1 if d["hop"] else 0)
         out.append(d)
     return out
 
@@ -870,14 +865,30 @@ def to_idna(domain):
         return domain
 
 
-def local_hy2_link(username, pw, hop_enabled=True):
+def local_hy2_obfs_password():
+    """Salamander obfs password from the local Hysteria config, or ''.
+
+    Same regex as the remote agent's read_hy2_passwords: the password
+    lives under `obfs: salamander: password:` in /etc/hysteria/config.yaml.
+    A node without obfs returns '' and the link carries no obfs params."""
+    try:
+        with open(HYSTERIA_CFG) as f:
+            text = f.read()
+    except OSError:
+        return ""
+    m = re.search(r'salamander:\s*\n\s+password:\s*"([^"]+)"', text)
+    return m.group(1) if m else ""
+
+
+def local_hy2_link(username, pw):
     node = load_node()
     domain = to_idna(node["domain"])
     name = local_server_name()
     q = "sni=%s" % domain
-    hop = local_hop_range()
-    if hop and hop_enabled:
-        q += "&mport=%s" % hop
+    obfs = local_hy2_obfs_password()
+    if obfs:
+        q = "obfs=salamander&obfs-password=%s&sni=%s" % (
+            urllib.parse.quote(obfs, safe=""), domain)
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain,
                node["hy2_port"], q, name))
@@ -891,162 +902,7 @@ def local_server_name():
     return "本机"
 
 
-HYSTERIA_CFG = "/etc/hysteria/config.yaml"
-
-
-def local_hop_range():
-    """Port-hopping range, or ''. Hysteria itself always listens on a single
-    port now; the range lives in HOP_RANGE_PATH when manual hopping is on.
-    A range listen line (from the old built-in approach) still counts, for
-    backwards compatibility."""
-    try:
-        with open(HYSTERIA_CFG) as f:
-            text = f.read()
-    except OSError:
-        text = ""
-    m = re.search(r"^listen:\s*:(\d+)-(\d+)\s*$", text, re.M)
-    if m:
-        return "%s-%s" % (m.group(1), m.group(2))
-    try:
-        with open(HOP_RANGE_PATH) as f:
-            r = f.read().strip()
-        if re.fullmatch(r"\d+-\d+", r):
-            return r
-    except OSError:
-        pass
-    return ""
-
-
-def _hop_nft_text(hop_range, hy2_port):
-    """nftables file content redirecting the hop range to the Hysteria
-    single port (both families; prerouting for remote clients, output for
-    local loopback probes, same as upstream's PREROUTING+OUTPUT)."""
-    s, e = hop_range.split("-")
-    chain = (
-        "    chain prerouting {\n"
-        "        type nat hook prerouting priority dstnat; policy accept;\n"
-        "        fib daddr type local udp dport %s-%s redirect to :%d\n"
-        "    }\n"
-        "    chain output {\n"
-        "        type nat hook output priority -100; policy accept;\n"
-        "        fib daddr type local udp dport %s-%s redirect to :%d\n"
-        "    }\n" % (s, e, hy2_port, s, e, hy2_port))
-    return ("table ip hy2hop {\n%s}\ntable ip6 hy2hop {\n%s}\n"
-            % (chain, chain))
-
-
-def _hop_service_text():
-    # Idempotent: drop any previous hy2hop tables first. A bare
-    # `nft -f` on an existing table silently ADDS a second copy of every
-    # rule (seen live 2026-11-18), so the deletes must come first.
-    return ("[Unit]\n"
-            "Description=Restore Hysteria 2 port-hop NAT rules\n"
-            "After=network.target\n"
-            "Before=hysteria-server.service\n"
-            "\n"
-            "[Service]\n"
-            "Type=oneshot\n"
-            "ExecStart=/bin/bash -c \"nft delete table ip hy2hop 2>/dev/null; "
-            "nft delete table ip6 hy2hop 2>/dev/null; "
-            "/usr/sbin/nft -f %s\"\n"
-            "RemainAfterExit=yes\n"
-            "\n"
-            "[Install]\n"
-            "WantedBy=multi-user.target\n" % HOP_NFT_PATH)
-
-
-def apply_manual_hop_rules(hop_range, hy2_port):
-    """Write the nftables hop rules for hop_range -> hy2_port and apply
-    them. Idempotent; also (re)writes + enables the boot service. Raises
-    on failure."""
-    with open(HOP_NFT_PATH, "w") as f:
-        f.write(_hop_nft_text(hop_range, hy2_port))
-    with open(HOP_SERVICE_PATH, "w") as f:
-        f.write(_hop_service_text())
-    run("systemctl daemon-reload")
-    # Drop any previous hy2hop tables first so -f never trips on a
-    # duplicate table (repeated toggles used to leave them behind).
-    run("nft delete table ip hy2hop 2>/dev/null; true")
-    run("nft delete table ip6 hy2hop 2>/dev/null; true")
-    rc, _, err = run("nft -f %s" % HOP_NFT_PATH)
-    if rc != 0:
-        raise RuntimeError("nft 规则应用失败：%s" % err)
-    run("systemctl enable hy2-hop.service")
-
-
-def clear_manual_hop_rules():
-    """Remove the nftables hop rules + file and disable the boot service.
-    Never raises (best effort)."""
-    run("nft delete table ip hy2hop 2>/dev/null; true")
-    run("nft delete table ip6 hy2hop 2>/dev/null; true")
-    try:
-        os.remove(HOP_NFT_PATH)
-    except OSError:
-        pass
-    run("systemctl disable --now hy2-hop.service 2>/dev/null; true")
-
-
-def _ensure_single_listen(hy2_port):
-    """If the Hysteria listen line is still a range (old built-in hopping),
-    put it back to the single node port and restart Hysteria. Returns True
-    if a restart happened."""
-    try:
-        with open(HYSTERIA_CFG) as f:
-            text = f.read()
-    except OSError:
-        return False
-    if not re.search(r"^listen:\s*:\d+-\d+\s*$", text, re.M):
-        return False
-    new_text, n = re.subn(r"^listen:\s*:\d+(?:-\d+)?\s*$",
-                          "listen: :%d" % hy2_port, text, count=1, flags=re.M)
-    if n != 1:
-        return False
-    run("cp %s %s.bak-hop" % (HYSTERIA_CFG, HYSTERIA_CFG))
-    with open(HYSTERIA_CFG, "w") as f:
-        f.write(new_text)
-    restart_hysteria()
-    return True
-
-
-def set_local_hop_range(hop_range):
-    """Set port hopping the upstream way: Hysteria keeps listening on its
-    single node port; the hop range is recorded in HOP_RANGE_PATH and the
-    kernel redirects it with manual nftables rules (HOP_NFT_PATH +
-    hy2-hop.service). Passing '' turns hopping off (removes the file +
-    rules). The Hysteria listen line is never a range anymore; if it still
-    is one (from the old built-in approach), it is put back to the single
-    port first. Returns the effective listen value (':<port>')."""
-    node = load_node()
-    hy2_port = node["hy2_port"]
-    if hop_range:
-        hop_range = hop_range.strip()
-        m = re.fullmatch(r"(\d+)-(\d+)", hop_range)
-        if not m or not (1 <= int(m.group(1)) < int(m.group(2)) <= 65535):
-            raise ValueError("跳跃区间须为 起-止，例如 20000-40000")
-        if int(m.group(2)) - int(m.group(1)) < 99:
-            raise ValueError("跳跃区间至少跨 100 个端口")
-        _ensure_single_listen(hy2_port)
-        with open(HOP_RANGE_PATH, "w") as f:
-            f.write(hop_range + "\n")
-        try:
-            apply_manual_hop_rules(hop_range, hy2_port)
-        except Exception:
-            try:
-                os.remove(HOP_RANGE_PATH)
-            except OSError:
-                pass
-            raise
-    else:
-        try:
-            os.remove(HOP_RANGE_PATH)
-        except OSError:
-            pass
-        clear_manual_hop_rules()
-        _ensure_single_listen(hy2_port)
-    return ":%d" % hy2_port
-
-
-def remote_hy2_link(server, username, pw, hop_enabled=True):
+def remote_hy2_link(server, username, pw):
     d = remote_read(server)
     domain = to_idna(d.get("domain") or server.get("host", ""))
     port = d.get("hy2_port") or 443
@@ -1055,8 +911,6 @@ def remote_hy2_link(server, username, pw, hop_enabled=True):
     if d.get("obfs_enabled") and d.get("obfs_password"):
         obfs = urllib.parse.quote(d["obfs_password"], safe="")
         q = "obfs=salamander&obfs-password=%s&sni=%s" % (obfs, domain)
-    if d.get("hop_range") and hop_enabled:
-        q += "&mport=%s" % d["hop_range"]
     return ("hysteria2://%s:%s@%s:%d?%s#【推荐】%s-Hy2"
             % (urllib.parse.quote(username, safe=""), pw, domain, port, q, name))
 
@@ -1084,7 +938,6 @@ def user_links(username):
     port = u["vless_port"]
     pw = urllib.parse.quote(u["hy2_password"], safe="")
     disabled = parse_disabled(u)
-    hop_enabled = (u.get("hop") is None) or bool(u.get("hop"))
     local_name = "本机"
     for s in load_servers():
         if s.get("type") == "local":
@@ -1099,14 +952,14 @@ def user_links(username):
     local_vless = re.sub(r"#.*$", "#【推荐】%s-Vless" % local_name,
                          local_vless, count=1)
     out = [{"id": "local", "name": local_name,
-            "link": local_hy2_link(username, pw, hop_enabled),
+            "link": local_hy2_link(username, pw),
             "vless_link": local_vless,
             "disabled": disabled.get("local")}]
     for s in load_servers():
         if s.get("type") != "remote":
             continue
         try:
-            link = remote_hy2_link(s, username, pw, hop_enabled)
+            link = remote_hy2_link(s, username, pw)
             d = remote_read(s)
             vlink = user_vless_link_for(s, d, vuuid, port)
         except Exception:
@@ -2485,7 +2338,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
-        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|hop)", p)
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry)", p)
         if m:
             if not self._require(admin_only=True):
                 return
@@ -2562,19 +2415,6 @@ class Handler(BaseHTTPRequestHandler):
                         conn.close()
                         sync_hy2_users_bg()
                         self._json(200, {"ok": True})
-                    elif action == "hop":
-                        # Per-user port hopping: only controls whether this
-                        # user's HY2 links carry mport. No server sync is
-                        # needed — links are generated on demand from the DB.
-                        # The server hop range itself is still set per-server.
-                        hop = 1 if body.get("hop") else 0
-                        conn.execute(
-                            "UPDATE users SET hop=? WHERE username=?",
-                            (hop, username),
-                        )
-                        conn.commit()
-                        conn.close()
-                        self._json(200, {"ok": True, "hop": hop})
                     elif action == "enable":
                         enabled = 1 if body.get("enabled") else 0
                         if enabled and not user.get("pw_set"):
@@ -2603,51 +2443,6 @@ class Handler(BaseHTTPRequestHandler):
                         sync_hy2_users_bg()
                         sync_vless_users_bg()
                         self._json(200, {"ok": True, "expiry_cleared": expiry_cleared})
-                except Exception as e:
-                    self._json(500, {"ok": False, "error": str(e)})
-            return
-        m = re.fullmatch(r"/api/servers/([^/]+)/hop", p)
-        if m:
-            if not self._require(admin_only=True):
-                return
-            sid = unquote(m.group(1))
-            body = self._read_json()
-            hop_range = (body.get("hop_range") or "").strip()
-            if hop_range:
-                hm = re.fullmatch(r"(\d+)-(\d+)", hop_range)
-                if not hm or not (1 <= int(hm.group(1)) < int(hm.group(2)) <= 65535):
-                    self._json(400, {"error": "跳跃区间须为 起-止，例如 20000-40000"})
-                    return
-                if int(hm.group(2)) - int(hm.group(1)) < 99:
-                    self._json(400, {"error": "跳跃区间至少跨 100 个端口"})
-                    return
-            with LOCK:
-                try:
-                    if sid == "local":
-                        listen = set_local_hop_range(hop_range)
-                    else:
-                        server = remote_server(sid)
-                        if not server:
-                            self._json(404, {"error": "服务器不存在"})
-                            return
-                        rc, out, err = remote_ssh(
-                            server,
-                            "python3 %s hy2-hop %s" % (AGENT_SCRIPT, hop_range),
-                            timeout=60)
-                        if rc != 0:
-                            self._json(500, {"error": "远程设置失败：%s" % (err or out)})
-                            return
-                        try:
-                            d = json.loads(out.strip().splitlines()[-1])
-                        except Exception:
-                            self._json(500, {"error": "远程返回无法解析：%s" % out[-200:]})
-                            return
-                        if not d.get("ok"):
-                            self._json(500, {"error": d.get("error") or "远程设置失败"})
-                            return
-                        listen = d.get("listen", "")
-                    self._json(200, {"ok": True, "hop_range": hop_range,
-                                     "listen": listen})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
