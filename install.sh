@@ -10,9 +10,12 @@
 #
 # 要求：root 用户运行；节点域名与面板子域名须已解析到本机公网 IP。
 # 安装时依次提问：节点域名、面板域名、ACME 邮箱、每月额度、面板端口、
-# 节点端口。面板端口默认 8443，节点端口（VLESS 与 HY2 共用）默认 443；
-# 两个端口都可自填任意 1-65535 的端口（自填最优先）；回车用默认，默认端口
-# 被别的服务占用时自动挑一个 10000-19999 的空闲端口。
+# VLESS 端口、HY2 端口。面板端口默认 8443，VLESS 端口默认 443，
+# HY2 端口默认 10468（与线上两台服务器的 HY2 端口一致）；三个端口都
+# 可自填任意 1-65535 的端口（自填最优先）；回车用默认，默认端口被别的
+# 服务占用时自动挑一个 10000-19999 的空闲端口。
+# VLESS 与 HY2 可以是不同端口（线上 D1：VLESS 52318 / HY2 10468；
+# D2：VLESS 443 / HY2 10468），也可以填同一个端口（旧版共用布局）。
 # 80 端口须空闲（acme.sh standalone 签证书用）。
 # 脚本可重复运行（幂等）：已装好的组件会跳过，已有的配置与证书会复用，
 # 重跑时端口默认沿用上次的选择。
@@ -38,6 +41,8 @@ die()   { echo -e "\033[1;31m[失败]\033[0m $*" >&2; exit 1; }
 # 免交互安装（借鉴 hysteria2-installer 的 HY2_* 环境变量做法）：设置
 # MP_<VAR>（如 MP_NODE_DOMAIN）可跳过对应提问，全部设好即全程不交互。
 # 例：MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com MP_QUOTA_GB=2000 bash install.sh
+# MP_NODE_PORT 仍可用（同时定 VLESS 与 HY2 两个端口，旧版共用布局）；
+# 要分开定端口用 MP_VLESS_PORT / MP_HY2_PORT（优先于 MP_NODE_PORT）。
 prompt() {
   local var="$1" text="$2" def="$3" ans=""
   local envvar="MP_$var" envval=""
@@ -59,7 +64,9 @@ prompt() {
 # 随机取一个 10000-19999 内的空闲端口。用法：
 #   pick_free_port [exclude_port] [need_udp]
 # exclude_port：跳过该端口（节点端口不能与面板端口撞号）；
-# need_udp=1：同时要求 UDP 空闲（VLESS 走 TCP、HY2 走 UDP，共用一个端口号）。
+# need_udp=1：同时要求 UDP 空闲（VLESS 与 HY2 分开问端口后：VLESS 只查
+# TCP，HY2 用 need_udp=1 保守地要求 TCP 与 UDP 都空闲；共用一个端口号
+# 时两个都要空闲）。
 # 最多试 20 次，取不到返回 1。
 pick_free_port() {
   local exclude="${1:-}" need_udp="${2:-0}" i p
@@ -97,12 +104,18 @@ panel_port_ok() {
   return 0
 }
 
-# 节点端口是否可用：TCP 与 UDP 都要空闲，或正由本项目服务占用（重跑）。
-node_port_ok() {
+# VLESS 端口是否可用：TCP 空闲，或正由 sing-box 占用（重跑）。
+vless_port_ok() {
   local p="$1"
   if ss -ltn 2>/dev/null | grep -q ":$p "; then
     port_held_by_project tcp "$p" || return 1
   fi
+  return 0
+}
+
+# HY2 端口是否可用：UDP 空闲，或正由 hysteria 占用（重跑）。
+hy2_port_ok() {
+  local p="$1"
   if ss -lun 2>/dev/null | grep -q ":$p "; then
     port_held_by_project udp "$p" || return 1
   fi
@@ -182,14 +195,16 @@ echo "域名解析：去域名 DNS 服务商处，给节点域名和面板域名
 echo "指向 $IP_HINT；有 IPv6 的话，再各加一条 AAAA 记录指向 $IP6_HINT。"
 echo "解析一般几分钟生效，生效后再继续安装。"
 echo
-# 重跑时沿用已有配置作为默认值。
-OLD_NODE=""; OLD_PANEL=""; OLD_QUOTA="2000"; OLD_PANEL_PORT=""; OLD_NODE_PORT=""
+# 重跑时沿用已有配置作为默认值。其中的 2000 只是全新安装提问时的
+# 默认额度（GB），不是某台服务器的值；node.json 里已有额度时沿用已有值。
+OLD_NODE=""; OLD_PANEL=""; OLD_QUOTA="2000"; OLD_PANEL_PORT=""; OLD_VLESS_PORT=""; OLD_HY2_PORT=""
 if [ -f "$DATA_DIR/node.json" ] && command -v jq >/dev/null 2>&1; then
   OLD_NODE=$(jq -r '.domain // empty' "$DATA_DIR/node.json" 2>/dev/null)
   OLD_PANEL=$(jq -r '.panel_domain // empty' "$DATA_DIR/node.json" 2>/dev/null)
   OLD_QUOTA=$(jq -r '.quota_gb // 2000' "$DATA_DIR/node.json" 2>/dev/null)
   OLD_PANEL_PORT=$(jq -r '.panel_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
-  OLD_NODE_PORT=$(jq -r '.vless_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
+  OLD_VLESS_PORT=$(jq -r '.vless_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
+  OLD_HY2_PORT=$(jq -r '.hy2_port // empty' "$DATA_DIR/node.json" 2>/dev/null)
 fi
 # 环境变量里的中文域名先转 punycode，再校验（校验只认 ASCII）。
 # 环境变量先校验，不合法直接退出（不回落到交互提问，免得免交互安装半路卡住）。
@@ -200,6 +215,9 @@ if [ -n "${MP_PANEL_DOMAIN:-}" ] && ! valid_domain "$MP_PANEL_DOMAIN"; then die 
 if [ -n "${MP_QUOTA_GB:-}" ]; then case "$MP_QUOTA_GB" in *[!0-9]*) die "MP_QUOTA_GB 须为数字（GB，0 = 不限）。";; esac; fi
 if [ -n "${MP_PANEL_PORT:-}" ]; then case "$MP_PANEL_PORT" in *[!0-9]*) die "MP_PANEL_PORT 须为数字（1-65535）。";; *) if [ "$MP_PANEL_PORT" -lt 1 ] || [ "$MP_PANEL_PORT" -gt 65535 ]; then die "MP_PANEL_PORT 须在 1-65535 之间。"; fi;; esac; fi
 if [ -n "${MP_NODE_PORT:-}" ]; then case "$MP_NODE_PORT" in *[!0-9]*) die "MP_NODE_PORT 须为数字（1-65535）。";; *) if [ "$MP_NODE_PORT" -lt 1 ] || [ "$MP_NODE_PORT" -gt 65535 ]; then die "MP_NODE_PORT 须在 1-65535 之间。"; fi;; esac; fi
+# MP_VLESS_PORT / MP_HY2_PORT：分开定两个节点端口，优先于 MP_NODE_PORT。
+if [ -n "${MP_VLESS_PORT:-}" ]; then case "$MP_VLESS_PORT" in *[!0-9]*) die "MP_VLESS_PORT 须为数字（1-65535）。";; *) if [ "$MP_VLESS_PORT" -lt 1 ] || [ "$MP_VLESS_PORT" -gt 65535 ]; then die "MP_VLESS_PORT 须在 1-65535 之间。"; fi;; esac; fi
+if [ -n "${MP_HY2_PORT:-}" ]; then case "$MP_HY2_PORT" in *[!0-9]*) die "MP_HY2_PORT 须为数字（1-65535）。";; *) if [ "$MP_HY2_PORT" -lt 1 ] || [ "$MP_HY2_PORT" -gt 65535 ]; then die "MP_HY2_PORT 须在 1-65535 之间。"; fi;; esac; fi
 while :; do
   prompt NODE_DOMAIN "① 节点域名（VLESS / HY2 共用，须已解析到本机 IP）" "$OLD_NODE"
   _old_domain="$NODE_DOMAIN"
@@ -227,6 +245,8 @@ while :; do
     *) break ;;
   esac
 done
+# QUOTA_GB 为空只发生在 OLD_QUOTA 为空的极端情况；2000 同样只是全新安装
+# 提问时的默认额度，不是某台服务器的值。
 [ -z "$QUOTA_GB" ] && QUOTA_GB=2000
 # ⑤ 面板端口：默认 8443，可自填任意 1-65535。
 # 重跑时默认沿用上次的端口。回车（不填）时：默认端口空闲就用它；被别的
@@ -257,44 +277,86 @@ while :; do
   esac
 done
 fi
-# ⑥ 节点端口：VLESS（TCP）与 HY2（UDP）共用一个端口号，默认 443，可自填任意 1-65535。
-# 重跑时默认沿用上次的端口。节点端口不能与面板端口撞号。
-# 回车（不填）时：默认端口空闲就用它；被别的服务占了就自动挑一个
-# 10000-19999 的空闲随机端口（不重填、不退出）；被本项目服务占用（重跑）则沿用。
-DEF_NODE_PORT="${OLD_NODE_PORT:-443}"
-if [ -n "${MP_NODE_PORT:-}" ]; then
-  NODE_PORT="$MP_NODE_PORT"
-  if [ "$NODE_PORT" = "$PANEL_PORT" ]; then die "MP_NODE_PORT 不能与面板端口（$PANEL_PORT）相同。"; fi
-  if ! node_port_ok "$NODE_PORT"; then die "MP_NODE_PORT 指定的端口 $NODE_PORT 已被占用（TCP 或 UDP）。"; fi
-  info "节点端口（环境变量）：$NODE_PORT"
+# ⑥⑦ 节点端口：VLESS（TCP）与 HY2（UDP）分开问，各有各的默认值，
+#   可填相同（旧版共用一个端口号的布局）也可填不同（线上 D1：52318/10468）。
+#   重跑时默认沿用上次的端口；两个端口都不能与面板端口撞号。
+#   回车（不填）时：默认端口空闲就用它；被别的服务占了就自动挑一个
+#   10000-19999 的空闲随机端口（不重填、不退出）；被本项目服务占用（重跑）则沿用。
+#   免交互：MP_NODE_PORT 仍可用（同时定两个端口，旧版共用布局）；
+#   MP_VLESS_PORT / MP_HY2_PORT 可单独覆盖其中一个（优先于 MP_NODE_PORT）。
+#   443（VLESS）与 10468（HY2）只是全新安装提问时的默认值，不是写死值。
+DEF_VLESS_PORT="${OLD_VLESS_PORT:-443}"
+DEF_HY2_PORT="${OLD_HY2_PORT:-10468}"
+if [ -n "${MP_VLESS_PORT:-}" ]; then
+  VLESS_PORT="$MP_VLESS_PORT"
+  if [ "$VLESS_PORT" = "$PANEL_PORT" ]; then die "MP_VLESS_PORT 不能与面板端口（$PANEL_PORT）相同。"; fi
+  if ! vless_port_ok "$VLESS_PORT"; then die "MP_VLESS_PORT 指定的 TCP $VLESS_PORT 端口已被占用。"; fi
+  info "VLESS 端口（环境变量）：$VLESS_PORT"
+elif [ -n "${MP_NODE_PORT:-}" ]; then
+  VLESS_PORT="$MP_NODE_PORT"
+  if [ "$VLESS_PORT" = "$PANEL_PORT" ]; then die "MP_NODE_PORT 不能与面板端口（$PANEL_PORT）相同。"; fi
+  if ! vless_port_ok "$VLESS_PORT"; then die "MP_NODE_PORT 指定的端口 $VLESS_PORT 已被占用（TCP）。"; fi
+  info "VLESS 端口（环境变量 MP_NODE_PORT）：$VLESS_PORT"
 else
 while :; do
-  printf '⑥ 节点端口（VLESS/HY2 共用，默认 %s，可自填；回车用默认，被占自动改随机）: ' "$DEF_NODE_PORT" > /dev/tty
-  IFS= read -r _node_ans < /dev/tty || _node_ans=""
-  if [ -z "$_node_ans" ]; then
-    NODE_PORT="$DEF_NODE_PORT"
-    if ! node_port_ok "$NODE_PORT"; then
-      NODE_PORT=$(pick_free_port "$PANEL_PORT" 1) || die "默认端口 $DEF_NODE_PORT 被占用，且取不到空闲节点端口，请检查端口占用后重跑。"
-      info "$DEF_NODE_PORT 被占用，节点端口自动改为 $NODE_PORT。"
+  printf '⑥ VLESS 端口（TCP，默认 %s，可自填；回车用默认，被占自动改随机）: ' "$DEF_VLESS_PORT" > /dev/tty
+  IFS= read -r _vless_ans < /dev/tty || _vless_ans=""
+  if [ -z "$_vless_ans" ]; then
+    VLESS_PORT="$DEF_VLESS_PORT"
+    if ! vless_port_ok "$VLESS_PORT"; then
+      VLESS_PORT=$(pick_free_port "$PANEL_PORT") || die "默认端口 $DEF_VLESS_PORT 被占用，且取不到空闲 VLESS 端口，请检查端口占用后重跑。"
+      info "$DEF_VLESS_PORT 被占用，VLESS 端口自动改为 $VLESS_PORT。"
     fi
     break
   fi
-  NODE_PORT="$_node_ans"
-  case "$NODE_PORT" in *[!0-9]*) warn "请输入数字（1-65535）。";;
-    *) if [ "$NODE_PORT" -lt 1 ] || [ "$NODE_PORT" -gt 65535 ]; then warn "端口须在 1-65535 之间。";
-       elif [ "$NODE_PORT" = "$PANEL_PORT" ]; then warn "节点端口不能与面板端口（$PANEL_PORT）相同，请换一个。";
-       elif ! node_port_ok "$NODE_PORT"; then warn "端口 $NODE_PORT 已被其他服务占用（TCP 或 UDP），请换一个。";
+  VLESS_PORT="$_vless_ans"
+  case "$VLESS_PORT" in *[!0-9]*) warn "请输入数字（1-65535）。";;
+    *) if [ "$VLESS_PORT" -lt 1 ] || [ "$VLESS_PORT" -gt 65535 ]; then warn "端口须在 1-65535 之间。";
+       elif [ "$VLESS_PORT" = "$PANEL_PORT" ]; then warn "VLESS 端口不能与面板端口（$PANEL_PORT）相同，请换一个。";
+       elif ! vless_port_ok "$VLESS_PORT"; then warn "TCP $VLESS_PORT 端口已被其他服务占用，请换一个。";
        else break; fi ;;
   esac
 done
 fi
-if [ "$NODE_PORT" != "443" ]; then
-  info "节点端口：$NODE_PORT（非 443；VLESS Reality 在非 443 端口上与正常 HTTPS 流量相似度略低，但功能完全一致，个人使用无影响）。"
+if [ -n "${MP_HY2_PORT:-}" ]; then
+  HY2_PORT="$MP_HY2_PORT"
+  if [ "$HY2_PORT" = "$PANEL_PORT" ]; then die "MP_HY2_PORT 不能与面板端口（$PANEL_PORT）相同。"; fi
+  if ! hy2_port_ok "$HY2_PORT"; then die "MP_HY2_PORT 指定的 UDP $HY2_PORT 端口已被占用。"; fi
+  info "HY2 端口（环境变量）：$HY2_PORT"
+elif [ -n "${MP_NODE_PORT:-}" ]; then
+  HY2_PORT="$MP_NODE_PORT"
+  if [ "$HY2_PORT" = "$PANEL_PORT" ]; then die "MP_NODE_PORT 不能与面板端口（$PANEL_PORT）相同。"; fi
+  if ! hy2_port_ok "$HY2_PORT"; then die "MP_NODE_PORT 指定的端口 $HY2_PORT 已被占用（UDP）。"; fi
+  info "HY2 端口（环境变量 MP_NODE_PORT）：$HY2_PORT"
+else
+while :; do
+  printf '⑦ HY2 端口（UDP，默认 %s，可自填；与 VLESS 相同也可以，回车用默认，被占自动改随机）: ' "$DEF_HY2_PORT" > /dev/tty
+  IFS= read -r _hy2_ans < /dev/tty || _hy2_ans=""
+  if [ -z "$_hy2_ans" ]; then
+    HY2_PORT="$DEF_HY2_PORT"
+    if ! hy2_port_ok "$HY2_PORT"; then
+      HY2_PORT=$(pick_free_port "$PANEL_PORT" 1) || die "默认端口 $DEF_HY2_PORT 被占用，且取不到空闲 HY2 端口，请检查端口占用后重跑。"
+      info "$DEF_HY2_PORT 被占用，HY2 端口自动改为 $HY2_PORT。"
+    fi
+    break
+  fi
+  HY2_PORT="$_hy2_ans"
+  case "$HY2_PORT" in *[!0-9]*) warn "请输入数字（1-65535）。";;
+    *) if [ "$HY2_PORT" -lt 1 ] || [ "$HY2_PORT" -gt 65535 ]; then warn "端口须在 1-65535 之间。";
+       elif [ "$HY2_PORT" = "$PANEL_PORT" ]; then warn "HY2 端口不能与面板端口（$PANEL_PORT）相同，请换一个。";
+       elif ! hy2_port_ok "$HY2_PORT"; then warn "UDP $HY2_PORT 端口已被其他服务占用，请换一个。";
+       else break; fi ;;
+  esac
+done
+fi
+if [ "$VLESS_PORT" != "443" ]; then
+  info "VLESS 端口：$VLESS_PORT（非 443；VLESS Reality 在非 443 端口上与正常 HTTPS 流量相似度略低，但功能完全一致，个人使用无影响）。"
 fi
 info "节点域名：$NODE_DOMAIN"
 info "面板域名：$PANEL_DOMAIN"
 info "面板端口：$PANEL_PORT"
-info "节点端口：$NODE_PORT"
+info "VLESS 端口：$VLESS_PORT"
+info "HY2 端口：$HY2_PORT"
 info "每月额度：$([ "$QUOTA_GB" = "0" ] && echo 不限 || echo "${QUOTA_GB} GB")"
 
 # ---------- DNS 与端口预检 ----------
@@ -311,8 +373,9 @@ for d in "$NODE_DOMAIN" "$PANEL_DOMAIN"; do
     confirm "仍要继续安装吗？" || die "已取消。请把 $d 的 A 记录改到 $PUB_IP 后再重跑。"
   fi
 done
-# :80 须空闲（acme.sh standalone 签证书用）。:443 不再预检——节点端口已在
-# 上面的提问里校验（默认 443，可自填；被占用的话当场重填，不直接报错退出）。
+# :80 须空闲（acme.sh standalone 签证书用）。:443 不再预检——VLESS 与
+# HY2 端口已在上面的提问里各查各的协议校验（默认 443 / 10468，可自填；
+# 被占用的话当场重填，不直接报错退出）。
 if ss -ltn 2>/dev/null | grep -q ':80 '; then
   die "80 端口已被占用，acme.sh 无法签证书。请先停掉占用 80 端口的服务（如 nginx / apache）再重跑。"
 fi
@@ -417,7 +480,7 @@ cat > /etc/sing-box/config.json <<EOF
       "type": "vless",
       "tag": "vless-in",
       "listen": "::",
-      "listen_port": $NODE_PORT,
+      "listen_port": $VLESS_PORT,
       "users": [{ "uuid": "$VLESS_UUID", "flow": "xtls-rprx-vision" }],
       "tls": {
         "enabled": true,
@@ -456,8 +519,8 @@ systemctl daemon-reload
 systemctl enable --now sing-box >/dev/null 2>&1 || die "sing-box 启动失败，请看 systemctl status sing-box。"
 sleep 2
 systemctl is-active --quiet sing-box || die "sing-box 未运行。"
-ss -ltn 2>/dev/null | grep -q ":$NODE_PORT " || die "sing-box 未监听 TCP $NODE_PORT。"
-ok "sing-box 运行中（VLESS + Reality，TCP $NODE_PORT）。"
+ss -ltn 2>/dev/null | grep -q ":$VLESS_PORT " || die "sing-box 未监听 TCP $VLESS_PORT。"
+ok "sing-box 运行中（VLESS + Reality，TCP $VLESS_PORT）。"
 
 # ---------- acme.sh 与证书（Let's Encrypt，standalone HTTP-01，走 80 端口） ----------
 if [ ! -x /root/.acme.sh/acme.sh ]; then
@@ -472,7 +535,10 @@ if [ ! -x /root/.acme.sh/acme.sh ]; then
   ok "acme.sh 已安装。"
 fi
 ACME=/root/.acme.sh/acme.sh
-# 证书默认用 ECC（acme.sh 的 <域名>_ecc 目录），与面板数据脚本的读取路径一致。
+# 证书默认用 ECC（acme.sh 的 <域名>_ecc 目录）。面板数据脚本
+# （api/mouse-panel-data.sh）除 acme.sh 路径外，也会依次找
+# /etc/hysteria/certs/fullchain.cer、/etc/sing-box/certs/fullchain.cer、
+# Hysteria 自带 ACME 目录与 /etc/caddy/certs/*.cer，覆盖非 acme.sh 的证书布局。
 for d in "$NODE_DOMAIN" "$PANEL_DOMAIN"; do
   if [ -f "/root/.acme.sh/${d}_ecc/fullchain.cer" ]; then
     info "证书已存在，跳过签发：$d"
@@ -515,7 +581,7 @@ fi
 TRAFFIC_SECRET=$(grep -oP '^  secret: "\K[^"]+' /etc/hysteria/config.yaml 2>/dev/null || true)
 [ -z "$TRAFFIC_SECRET" ] && TRAFFIC_SECRET=$(openssl rand -hex 16)
 cat > /etc/hysteria/config.yaml <<EOF
-listen: :$NODE_PORT
+listen: :$HY2_PORT
 
 tls:
   cert: /etc/hysteria/certs/fullchain.cer
@@ -551,8 +617,8 @@ systemctl daemon-reload
 systemctl enable --now hysteria-server >/dev/null 2>&1 || die "Hysteria 2 启动失败，请看 systemctl status hysteria-server。"
 sleep 2
 systemctl is-active --quiet hysteria-server || die "Hysteria 2 未运行。"
-ss -lun 2>/dev/null | grep -q ":$NODE_PORT " || die "Hysteria 2 未监听 UDP $NODE_PORT。"
-ok "Hysteria 2 运行中（UDP $NODE_PORT）。"
+ss -lun 2>/dev/null | grep -q ":$HY2_PORT " || die "Hysteria 2 未监听 UDP $HY2_PORT。"
+ok "Hysteria 2 运行中（UDP $HY2_PORT）。"
 
 # ---------- Caddy（面板，显式证书文件，不抢 80/443） ----------
 if ! command -v caddy >/dev/null 2>&1; then
@@ -628,11 +694,11 @@ install -m 644 "$SRC/api/mouse-panel-api.service" /etc/systemd/system/mouse-pane
 ok "面板文件已部署到 $PANEL_DIR 与 /usr/local/bin。"
 
 # ---------- 面板数据与配置 ----------
-VLESS_LINK="vless://${VLESS_UUID}@${NODE_DOMAIN}:${NODE_PORT}?security=reality&encryption=none&pbk=${REALITY_PUB}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=www.apple.com&sid=${SHORT_ID}#Vless"
+VLESS_LINK="vless://${VLESS_UUID}@${NODE_DOMAIN}:${VLESS_PORT}?security=reality&encryption=none&pbk=${REALITY_PUB}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=www.apple.com&sid=${SHORT_ID}#Vless"
 jq -n \
   --arg domain "$NODE_DOMAIN" --arg panel_domain "$PANEL_DOMAIN" \
   --argjson quota_gb "$QUOTA_GB" --arg iface "$IFACE" \
-  --argjson panel_port "$PANEL_PORT" --argjson vless_port "$NODE_PORT" --argjson hy2_port "$NODE_PORT" \
+  --argjson panel_port "$PANEL_PORT" --argjson vless_port "$VLESS_PORT" --argjson hy2_port "$HY2_PORT" \
   '{domain: $domain, panel_domain: $panel_domain, panel_port: $panel_port, vless_port: $vless_port, hy2_port: $hy2_port,
     reality_sni: "www.apple.com", quota_gb: $quota_gb, iface: $iface}' \
   > "$DATA_DIR/node.json"
@@ -650,13 +716,22 @@ if [ -f "$DATA_DIR/servers.json" ] && command -v jq >/dev/null 2>&1; then
 fi
 [ -f "$DATA_DIR/servers.json" ] || echo "[{\"id\": \"local\", \"name\": \"本机\", \"type\": \"local\", \"quota_gb\": $QUOTA_GB}]" > "$DATA_DIR/servers.json"
 # 远端 agent 配置（本机被别的面板加为远程服务器时用）。
+# 节点证书路径按本机实际存在的文件定：acme.sh 布局优先，其次是
+# Hysteria / sing-box 的证书位置（D1 的 Hysteria 自带 ACME 证书不在
+# acme.sh 目录下，写死 acme.sh 路径会在那类机器上读不到到期时间）。
+SINGBOX_CERT_FILE=""
+for _cand in "/root/.acme.sh/${NODE_DOMAIN}_ecc/fullchain.cer" \
+    /etc/hysteria/certs/fullchain.cer /etc/sing-box/certs/fullchain.cer; do
+  if [ -f "$_cand" ]; then SINGBOX_CERT_FILE="$_cand"; break; fi
+done
+[ -n "$SINGBOX_CERT_FILE" ] || SINGBOX_CERT_FILE="/root/.acme.sh/${NODE_DOMAIN}_ecc/fullchain.cer"
 cat > /etc/mouse-panel-agent.conf <<EOF
 DOMAIN=$NODE_DOMAIN
-VLESS_PORT=$NODE_PORT
-HY2_PORT=$NODE_PORT
+VLESS_PORT=$VLESS_PORT
+HY2_PORT=$HY2_PORT
 VLESS_SECURITY=reality
 VNSTAT_IFACE=$IFACE
-SINGBOX_CERT=/root/.acme.sh/${NODE_DOMAIN}_ecc/fullchain.cer
+SINGBOX_CERT=$SINGBOX_CERT_FILE
 EOF
 # 面板 SSH 钥匙（加远程服务器时用；私钥只留本机，公钥由面板设置页给出）。
 if [ ! -f /root/.ssh/id_ed25519_panel ]; then
@@ -706,8 +781,8 @@ echo "  Mouse Panel 安装完成"
 echo "=============================================="
 echo "  面板地址：https://$PANEL_DOMAIN:$PANEL_PORT"
 echo "  节点域名：$NODE_DOMAIN"
-echo "  VLESS：TCP $NODE_PORT（Reality，SNI www.apple.com）"
-echo "  Hysteria 2：UDP $NODE_PORT（用户密码认证）"
+echo "  VLESS：TCP $VLESS_PORT（Reality，SNI www.apple.com）"
+echo "  Hysteria 2：UDP $HY2_PORT（用户密码认证）"
 echo "  每月额度：$([ "$QUOTA_GB" = "0" ] && echo 不限 || echo "${QUOTA_GB} GB")"
 echo
 echo "  VLESS 链接（导入客户端即用）："
@@ -722,7 +797,7 @@ echo "  首次打开面板会让你设置管理员用户名与密码（≥6 位�
 echo "  设置完直接进入面板；之后在「用户管理」里加普通用户。"
 echo
 echo "  防火墙提醒（面板不自动配，须自己去云厂商控制台放行）："
-echo "  节点端口 $NODE_PORT（TCP+UDP）、面板端口 $PANEL_PORT（TCP），"
+echo "  VLESS 端口 $VLESS_PORT（TCP）、HY2 端口 $HY2_PORT（UDP）、面板端口 $PANEL_PORT（TCP），"
 echo "  再加端口范围 10000–40000（TCP，一次放开以后加用户、重装都不用再动）。"
 echo "  签证书用的 80 端口装完可关。详见 README 的防火墙一节。"
 echo "  卸载：见仓库 README 的卸载一节。"
