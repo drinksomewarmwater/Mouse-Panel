@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.3
+# Mouse Panel 🐹 V1.1.4
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -185,7 +185,7 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ### 版本号
 
-页面最底部显示当前版本号（比如 V1.1.3），管理员和普通用户都能看到。点版本号会弹出本版的更新日志，里面有 GitHub 项目链接。版本号只存在一处常量里，更新时改一处即可；更新日志按版本号分节（CHANGELOG.md 与 README 的更新日志节同步）。
+页面最底部显示当前版本号（比如 V1.1.4），管理员和普通用户都能看到。点版本号会弹出本版的更新日志，里面有 GitHub 项目链接。版本号只存在一处常量里，更新时改一处即可；更新日志按版本号分节（CHANGELOG.md 与 README 的更新日志节同步）。
 
 ## 添加远程服务器（多机）
 
@@ -326,6 +326,12 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.4 (2026-11-23)
+
+**新增**
+
+- 中文域名部署时自动转 punycode：安装时输入的节点域名 / 面板域名（含 `MP_NODE_DOMAIN`、`MP_PANEL_DOMAIN` 环境变量）若含中文，写入配置前自动转成 punycode 再保存；面板里添加 / 修改服务器时填的主机域名同样先转码再保存。之后所有地方用的都是 ASCII 域名，节点链接不再出现中文域名。
 
 ### V1.1.3 (2026-11-18)
 
