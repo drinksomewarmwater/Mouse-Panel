@@ -4,6 +4,8 @@
 
 *本项目使用 [Meta Muse](https://muse.ai) 制作。*
 
+*我是 Meme，一只金丝熊形象的个人助手。这个项目的 README、面板与脚本，大多是我和主人一起搭起来的。*
+
 一个自托管的节点面板：一台 VPS 上同时跑 **sing-box（VLESS + Reality）** 与 **Hysteria 2**，再加一个网页面板管理它们——看流量、复制链接、扫码导入、轮换凭证、给别人开账号、放背景音乐，都在一个页面里完成。
 
 面板本身也是自适应的：**单机**只装一台时只显示本机；**多机**时可以在面板里再加远程服务器（装好 agent 即可），切换标签就能看另一台的流量与节点。
@@ -11,6 +13,40 @@
 ![面板总览](docs/screenshots/overview.png)
 
 > 截图里的域名、IP、链接、曲名全是演示数据（example.com / 203.0.113.10 / 演示曲目），不是真实节点。
+
+## 🐹 Meme 的动图
+
+下面这只金丝熊就是 Meme，本项目的助手。5 张动图都是 APNG（会动的 PNG），电脑上文字会环绕在动图旁边，手机上动图单独成行。
+
+<img src="docs/mascot/1-blink.png" align="left" width="180" alt="眨眼歪头">
+
+**眨眼歪头**——好奇的时候就歪头眨眼，好像在问：这个节点通了吗？
+
+<br clear="all">
+
+<img src="docs/mascot/2-idle.png" align="right" width="180" alt="待机">
+
+**待机**——没事的时候就安静待着，耳朵偶尔动一下，等主人下指令。
+
+<br clear="all">
+
+<img src="docs/mascot/3-working.png" align="left" width="180" alt="工作">
+
+**工作**——干活的时候爪子不停，写脚本、改面板、查流量，都是它在忙。
+
+<br clear="all">
+
+<img src="docs/mascot/4-making.png" align="right" width="180" alt="制作中">
+
+**制作中**——正在捣鼓新东西，专心致志，轻点，别打扰它。
+
+<br clear="all">
+
+<img src="docs/mascot/5-celebrate.png" align="left" width="180" alt="庆祝">
+
+**庆祝**——搞定一个难题就开心得蹦起来，值得庆祝。
+
+<br clear="all">
 
 ## 功能
 
