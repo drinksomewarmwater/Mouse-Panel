@@ -3,7 +3,10 @@
 
 Hysteria calls POST /auth on every new client connection with
 {"addr": "client_ip:port", "auth": "password"} and expects
-{"ok": true} or {"ok": false, "msg": "..."}.
+{"ok": true, "id": "<username>"} or {"ok": false, "msg": "..."}.
+The "id" is the username Hysteria uses to attribute traffic per user
+in /traffic; without it every connection is lumped under an empty id
+and per-user statistics (and the panel's daily/monthly usage) break.
 
 The user file /var/lib/mouse-panel/hy2-users.json is written by
 hy2_auth_sync.py (enabled users only):
@@ -72,13 +75,18 @@ def _record_failure(now):
 
 
 def authenticate(auth):
-    """Returns (ok, msg). Only the password and the expiry date are
-    checked; there is no IP counting (it could not be enforced)."""
+    """Returns (ok, msg, username). Only the password and the expiry date
+    are checked; there is no IP counting (it could not be enforced).
+    The username is returned on success so the caller can put it in the
+    "id" field of the auth response: Hysteria uses that id to attribute
+    traffic per user in /traffic. Without it, every connection is lumped
+    under an empty id and per-user statistics stop working."""
     now = int(time.time())
     if _rate_limited(now):
-        return False, "Auth service busy"
+        return False, "Auth service busy", None
     users = _load_users()
     matched_info = None
+    matched_username = None
     if isinstance(auth, str) and auth:
         # Hysteria2 links carry a username prefix (e.g. admin:<password>)
         # and some clients (ClashMeta, v2rayNG/sing-box) send the whole
@@ -98,12 +106,13 @@ def authenticate(auth):
             for cand in candidates:
                 if cand and hmac.compare_digest(pw.encode(), cand.encode()):
                     matched_info = info
+                    matched_username = username
                     break
             if matched_info is not None:
                 break
     if matched_info is None:
         _record_failure(now)
-        return False, "User not found"
+        return False, "User not found", None
     expires_at = matched_info.get("expires_at")
     try:
         expires_at = int(expires_at) if expires_at is not None else None
@@ -111,8 +120,8 @@ def authenticate(auth):
         expires_at = None
     if expires_at is not None and now >= expires_at:
         _record_failure(now)
-        return False, "User account expired"
-    return True, ""
+        return False, "User account expired", None
+    return True, "", matched_username
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -168,8 +177,10 @@ class Handler(BaseHTTPRequestHandler):
         auth = req.get("auth", "")
         if not isinstance(auth, str):
             return self._reply(400, {"ok": False, "msg": "Invalid request"})
-        ok, msg = authenticate(auth)
-        return self._reply(200, {"ok": ok, "msg": msg} if not ok else {"ok": True})
+        ok, msg, username = authenticate(auth)
+        # Hysteria expects {"ok": true, "id": "<username>"} on success and
+        # uses "id" to attribute traffic per user in /traffic.
+        return self._reply(200, {"ok": ok, "msg": msg} if not ok else {"ok": True, "id": username})
 
 
 if __name__ == "__main__":
