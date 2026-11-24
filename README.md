@@ -4,49 +4,19 @@
 
 *本项目使用 [Meta Muse](https://muse.ai) 制作。*
 
+<img src="docs/mascot/1-blink.png" align="left" width="140" alt="Meme">
+
 *我是 Meme，一只金丝熊形象的个人助手。这个项目的 README、面板与脚本，大多是我和主人一起搭起来的。*
 
 一个自托管的节点面板：一台 VPS 上同时跑 **sing-box（VLESS + Reality）** 与 **Hysteria 2**，再加一个网页面板管理它们——看流量、复制链接、扫码导入、轮换凭证、给别人开账号、放背景音乐，都在一个页面里完成。
 
 面板本身也是自适应的：**单机**只装一台时只显示本机；**多机**时可以在面板里再加远程服务器（装好 agent 即可），切换标签就能看另一台的流量与节点。
 
+<br clear="all">
+
 ![面板总览](docs/screenshots/overview.png)
 
 > 截图里的域名、IP、链接、曲名全是演示数据（example.com / 203.0.113.10 / 演示曲目），不是真实节点。
-
-## 🐹 Meme 的动图
-
-下面这只金丝熊就是 Meme，本项目的助手。5 张动图都是 APNG（会动的 PNG），电脑上文字会环绕在动图旁边，手机上动图单独成行。
-
-<img src="docs/mascot/1-blink.png" align="left" width="180" alt="眨眼歪头">
-
-**眨眼歪头**——好奇的时候就歪头眨眼，好像在问：这个节点通了吗？
-
-<br clear="all">
-
-<img src="docs/mascot/2-idle.png" align="right" width="180" alt="待机">
-
-**待机**——没事的时候就安静待着，耳朵偶尔动一下，等主人下指令。
-
-<br clear="all">
-
-<img src="docs/mascot/3-working.png" align="left" width="180" alt="工作">
-
-**工作**——干活的时候爪子不停，写脚本、改面板、查流量，都是它在忙。
-
-<br clear="all">
-
-<img src="docs/mascot/4-making.png" align="right" width="180" alt="制作中">
-
-**制作中**——正在捣鼓新东西，专心致志，轻点，别打扰它。
-
-<br clear="all">
-
-<img src="docs/mascot/5-celebrate.png" align="left" width="180" alt="庆祝">
-
-**庆祝**——搞定一个难题就开心得蹦起来，值得庆祝。
-
-<br clear="all">
 
 ## 功能
 
@@ -79,7 +49,11 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/drinksomewarmwater/Mo
 bash install.sh
 ```
 
+<img src="docs/mascot/4-making.png" align="right" width="140" alt="Meme">
+
 脚本会装好 sing-box、Hysteria 2、acme.sh（签证书）、Caddy（面板，端口安装时定）、面板前端与后端、5 分钟定时任务（流量采集 + 用户流量统计）。脚本可重复运行：已装好的组件会跳过，已有的配置与证书会复用，不会把凭证换掉；重跑时端口默认沿用上次的选择。
+
+<br clear="all">
 
 ## 安装时填什么
 
@@ -120,7 +94,11 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ## 防火墙
 
+<img src="docs/mascot/2-idle.png" align="left" width="140" alt="Meme">
+
 **面板与安装脚本不自动配置防火墙**。云厂商的防火墙在控制台那边，不在服务器上，安装脚本够不着；把云账号密钥交给面板也不安全。所以装完之后，须自己在云厂商控制台（或主机防火墙）放行以下端口。
+
+<br clear="all">
 
 面板端口和节点端口按同一个优先级定，**自填最优先**：
 
@@ -156,7 +134,11 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ### 链接与二维码
 
+<img src="docs/mascot/3-working.png" align="right" width="140" alt="Meme">
+
 每张节点卡片里有链接文本框、一键复制链接、点击显示二维码。链接等同于密码，不要转发。按钮颜色：一键复制链接与点击显示二维码是蓝色，轮换凭证是红色（危险操作，按钮也更小）。移动鼠标可以扰动背景波纹，点击页面任意处激起水花。
+
+<br clear="all">
 
 ### 流量与证书
 
@@ -327,7 +309,11 @@ Mouse-Panel/
 
 ## 致谢（Credits）
 
+<img src="docs/mascot/5-celebrate.png" align="left" width="140" alt="Meme">
+
 **本项目是 [hysteria2-installer](https://github.com/yys9253462-gif/hysteria2-installer)（yys9253462-gif，MIT）的 fork。** HY2 面板（portal）与多用户管理的思路源自该项目；本项目在此基础上重写为统一的多服务器节点面板——VLESS + HY2 双协议、多服务器切换、流量预警、多用户、背景音乐等均为本项目新增。免交互安装的环境变量做法也借鉴了该项目。
+
+<br clear="all">
 
 本项目用到的第三方开源项目（只列当前仍在引用的）：
 
