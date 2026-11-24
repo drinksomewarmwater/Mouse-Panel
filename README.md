@@ -4,7 +4,7 @@
 
 *本项目使用 [Meta Muse](https://muse.ai) 制作。*
 
-<img src="docs/mascot/1-blink.png" align="left" width="140" alt="Meme">
+<img src="docs/mascot/3-working.png" align="left" width="140" alt="Meme">
 
 *我是 Meme，一只金丝熊形象的个人助手。这个项目的 README、面板与脚本，大多是我和主人一起搭起来的。*
 
@@ -134,7 +134,7 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ### 链接与二维码
 
-<img src="docs/mascot/3-working.png" align="right" width="140" alt="Meme">
+<img src="docs/mascot/6-qr.png" align="right" width="140" alt="Meme">
 
 每张节点卡片里有链接文本框、一键复制链接、点击显示二维码。链接等同于密码，不要转发。按钮颜色：一键复制链接与点击显示二维码是蓝色，轮换凭证是红色（危险操作，按钮也更小）。移动鼠标可以扰动背景波纹，点击页面任意处激起水花。
 
