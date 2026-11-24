@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.4
+# Mouse Panel 🐹 V1.1.5
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -183,7 +183,7 @@ MP_NODE_DOMAIN=node.example.com MP_PANEL_DOMAIN=panel.example.com \
 
 ### 版本号
 
-页面最底部显示当前版本号（比如 V1.1.4），管理员和普通用户都能看到。点版本号会弹出本版的更新日志，里面有 GitHub 项目链接。版本号只存在一处常量里，更新时改一处即可；更新日志按版本号分节（CHANGELOG.md 与 README 的更新日志节同步）。
+页面最底部显示当前版本号（比如 V1.1.5），管理员和普通用户都能看到。点版本号会弹出本版的更新日志，里面有 GitHub 项目链接。版本号只存在一处常量里，更新时改一处即可；更新日志按版本号分节（CHANGELOG.md 与 README 的更新日志节同步）。
 
 ## 添加远程服务器（多机）
 
@@ -324,6 +324,12 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.5 (2026-11-24)
+
+**修复**
+
+- 修复 HY2 流量统计无法按用户归属：HTTP 鉴权改成只回 `{"ok": true}`，没带用户名，Hysteria 便把全部连接的流量都记到一个空用户名下，采集器按用户名查不到就跳过，于是 11 月 18 日改 HTTP 鉴权后 HY2 的用量再也没进过统计，用户表的“今日”一直是 0。现在鉴权成功时回 `{"ok": true, "id": "<用户名>"}`，Hysteria 按用户名记流量，今日与本月用量恢复正常。11 月 18 日至修复前这段 HY2 流量因当时只记在空用户名下，无法再按用户拆分，不补。
 
 ### V1.1.4 (2026-11-23)
 
