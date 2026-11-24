@@ -628,7 +628,7 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.4 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.5 更新日志</div>
     <ul class="version-list">
       <li>中文域名部署时自动转 punycode：安装时输入的节点域名 / 面板域名（含 MP_NODE_DOMAIN、MP_PANEL_DOMAIN 环境变量）若含中文，写入配置前自动转成 punycode 再保存；面板里添加 / 修改服务器时填的主机域名同样先转码再保存，之后所有地方用的都是 ASCII 域名</li>
       <li>本地 HY2 链接支持 salamander 混淆：本地节点的链接现在也带 obfs 参数（与远程节点一致），有混淆的节点不会再丢参数</li>
@@ -751,7 +751,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.4"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
+var PANEL_VERSION = "V1.1.5"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
