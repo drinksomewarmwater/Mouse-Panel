@@ -2,6 +2,13 @@
 
 Mouse-Panel 的改动记录。只记功能层面的变化。
 
+## V1.1.6 (2026-11-25)
+
+### 新增
+
+- 订阅链接按客户端自动适配格式（借鉴 edgetunnel 的做法）：同一个 `/sub/<token>` 链接，Clash / Mihomo 客户端拿到 Clash YAML（含手动选择组、自动选择 url-test 组与 MATCH 规则），sing-box 拿到 sing-box JSON（含选择器、urltest 组与 direct），其他客户端（ShadowRocket、v2rayNG、Surge、Quantumult X、Loon、浏览器）仍拿到纯文本节点链接；判断依据是请求的 User-Agent。管理员“复制订阅”得到的链接从此各客户端通用。Surge 仍走纯文本：Surge 不支持 Reality，面板的 VLESS+Reality 节点没法写进 Surge 配置里，硬写只会得到连不上的节点。
+- 致谢新增 edgetunnel：订阅按 User-Agent 适配格式的做法源自该项目（cmliu/edgetunnel，MIT）。
+
 ## V1.1.5 (2026-11-24)
 
 ### 修复
