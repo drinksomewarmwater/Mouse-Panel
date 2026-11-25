@@ -1112,6 +1112,210 @@ def subscription_links(username):
     return [x for x in lines if x]
 
 
+# --- universal subscription (edgetunnel-style User-Agent detection) ---
+# One /sub/<token> URL serves every client: the server reads the
+# request's User-Agent and returns the subscription in the format that
+# client expects. edgetunnel (cmliu/edgetunnel, MIT) does the same
+# thing: it matches clash/meta/mihomo, singbox/sing-box, surge,
+# quantumult, loon in the UA and converts its node list into that
+# client's format (via a subconverter backend). This panel generates
+# the formats natively instead — Clash YAML and sing-box JSON are
+# built from the user's own node links; anything else gets the
+# plain-text links, which ShadowRocket / v2rayNG / Quantumult X / Loon
+# import directly. Surge is deliberately left on plain text: Surge has
+# no Reality support, so the panel's VLESS+Reality nodes cannot be
+# expressed in Surge's format, and a config with dead VLESS entries
+# would be worse than plain links.
+
+def parse_proxy_link(link):
+    """Parse one VLESS or HY2 URI into a dict, or None if unparseable.
+
+    VLESS (Reality): vless://uuid@host:port?security=reality&
+    encryption=none&pbk=..&fp=..&type=tcp&flow=xtls-rprx-vision&
+    sni=..&sid=..#name. VLESS (TLS): same shape with security=tls and
+    no pbk/sid/flow. HY2: hysteria2://user:pass@host:port?
+    obfs=salamander&obfs-password=..&sni=..#name (obfs params absent
+    when the node has no obfs)."""
+    try:
+        u = urllib.parse.urlsplit(link)
+    except Exception:
+        return None
+    if u.scheme not in ("vless", "hysteria2"):
+        return None
+    if not u.hostname or not u.port:
+        return None
+    try:
+        name = urllib.parse.unquote(u.fragment or "")
+    except Exception:
+        name = ""
+    q = urllib.parse.parse_qs(u.query or "")
+    def q1(key, default=""):
+        v = q.get(key)
+        return v[0] if v else default
+    if u.scheme == "vless":
+        uuid = urllib.parse.unquote(u.username or "")
+        if not uuid:
+            return None
+        return {"kind": "vless", "name": name, "uuid": uuid,
+                "server": u.hostname, "port": u.port,
+                "security": q1("security"),
+                "pbk": q1("pbk"), "fp": q1("fp", "chrome"),
+                "sni": q1("sni") or u.hostname,
+                "sid": q1("sid"), "flow": q1("flow"),
+                "network": q1("type", "tcp")}
+    # hysteria2
+    username = urllib.parse.unquote(u.username or "")
+    password = urllib.parse.unquote(u.password or "")
+    if not password:
+        return None
+    return {"kind": "hy2", "name": name, "username": username,
+            "password": password, "server": u.hostname, "port": u.port,
+            "sni": q1("sni") or u.hostname,
+            "obfs": q1("obfs"), "obfs_password": q1("obfs-password")}
+
+
+def _dedupe_names(nodes):
+    """Make node names unique for group/outbound references: a second
+    node with the same name gets ' (2)', then ' (3)', and so on."""
+    seen = {}
+    out = []
+    for n in nodes:
+        d = dict(n)
+        base = d.get("name") or d["kind"]
+        k = seen.get(base, 0) + 1
+        seen[base] = k
+        if k > 1:
+            d["name"] = "%s (%d)" % (base, k)
+        out.append(d)
+    return out
+
+
+def _yaml_str(s):
+    """A YAML double-quoted string. JSON double-quoted strings are
+    valid YAML double-quoted scalars, so json.dumps is enough (and it
+    handles the Chinese node names with ensure_ascii=False)."""
+    return json.dumps(str(s), ensure_ascii=False)
+
+
+def clash_subscription_yaml(nodes):
+    """Clash/Mihomo YAML for one user's nodes: proxies + a manual
+    select group + an auto-select url-test group + a final MATCH rule.
+    Generated as text (the API runs on stdlib only, no PyYAML)."""
+    nodes = _dedupe_names([n for n in nodes if n])
+    names = [n["name"] for n in nodes]
+    L = []
+    L.append("port: 7890")
+    L.append("socks-port: 7891")
+    L.append("allow-lan: false")
+    L.append("mode: rule")
+    L.append("log-level: info")
+    L.append("proxies:")
+    for n in nodes:
+        L.append("  - name: %s" % _yaml_str(n["name"]))
+        if n["kind"] == "vless":
+            L.append("    type: vless")
+            L.append("    server: %s" % _yaml_str(n["server"]))
+            L.append("    port: %d" % n["port"])
+            L.append("    uuid: %s" % _yaml_str(n["uuid"]))
+            L.append("    tls: true")
+            L.append("    servername: %s" % _yaml_str(n["sni"]))
+            if n.get("security") == "reality":
+                L.append("    reality-opts:")
+                L.append("      public-key: %s" % _yaml_str(n["pbk"]))
+                L.append("      short-id: %s" % _yaml_str(n.get("sid") or ""))
+            L.append("    client-fingerprint: %s" % _yaml_str(n.get("fp") or "chrome"))
+            if n.get("flow"):
+                L.append("    flow: %s" % _yaml_str(n["flow"]))
+            L.append("    network: %s" % _yaml_str(n.get("network") or "tcp"))
+        else:
+            L.append("    type: hysteria2")
+            L.append("    server: %s" % _yaml_str(n["server"]))
+            L.append("    port: %d" % n["port"])
+            L.append("    password: %s" % _yaml_str(n["password"]))
+            L.append("    sni: %s" % _yaml_str(n["sni"]))
+            if n.get("obfs") == "salamander" and n.get("obfs_password"):
+                L.append("    obfs: salamander")
+                L.append("    obfs-password: %s" % _yaml_str(n["obfs_password"]))
+    L.append("proxy-groups:")
+    L.append("  - name: %s" % _yaml_str("👋手动选择"))
+    L.append("    type: select")
+    L.append("    proxies:")
+    for name in names:
+        L.append("      - %s" % _yaml_str(name))
+    L.append("  - name: %s" % _yaml_str("⚡自动选择"))
+    L.append("    type: url-test")
+    L.append("    url: http://www.gstatic.com/generate_204")
+    L.append("    interval: 300")
+    L.append("    proxies:")
+    for name in names:
+        L.append("      - %s" % _yaml_str(name))
+    L.append("rules:")
+    L.append("  - MATCH,%s" % "👋手动选择")
+    return "\n".join(L) + "\n"
+
+
+def singbox_subscription_json(nodes):
+    """sing-box JSON for one user's nodes: one outbound per node plus
+    a selector, a urltest group and a direct outbound; the route's
+    final outbound is the selector."""
+    nodes = _dedupe_names([n for n in nodes if n])
+    names = [n["name"] for n in nodes]
+    outbounds = []
+    for n in nodes:
+        if n["kind"] == "vless":
+            tls = {"enabled": True, "server_name": n["sni"],
+                   "utls": {"enabled": True,
+                            "fingerprint": n.get("fp") or "chrome"}}
+            if n.get("security") == "reality":
+                tls["reality"] = {"enabled": True,
+                                  "public_key": n["pbk"],
+                                  "short_id": n.get("sid") or ""}
+            ob = {"type": "vless", "tag": n["name"],
+                  "server": n["server"], "server_port": n["port"],
+                  "uuid": n["uuid"], "tls": tls}
+            if n.get("flow"):
+                ob["flow"] = n["flow"]
+            outbounds.append(ob)
+        else:
+            ob = {"type": "hysteria2", "tag": n["name"],
+                  "server": n["server"], "server_port": n["port"],
+                  "password": n["password"],
+                  "tls": {"enabled": True, "server_name": n["sni"]}}
+            if n.get("obfs") == "salamander" and n.get("obfs_password"):
+                ob["obfs"] = {"type": "salamander",
+                              "password": n["obfs_password"]}
+            outbounds.append(ob)
+    outbounds.append({"type": "selector", "tag": "👋手动选择",
+                      "outbounds": names})
+    outbounds.append({"type": "urltest", "tag": "⚡自动选择",
+                      "outbounds": names,
+                      "url": "http://www.gstatic.com/generate_204",
+                      "interval": "5m"})
+    outbounds.append({"type": "direct", "tag": "direct"})
+    cfg = {
+        "log": {"level": "info"},
+        "inbounds": [{"type": "mixed", "tag": "mixed-in",
+                      "listen": "127.0.0.1", "listen_port": 7890}],
+        "outbounds": outbounds,
+        "route": {"rules": [], "final": "👋手动选择"},
+    }
+    return json.dumps(cfg, ensure_ascii=False, indent=2) + "\n"
+
+
+def detect_sub_format(user_agent):
+    """Subscription format for a /sub/<token> request, from its
+    User-Agent (same keywords edgetunnel uses): Clash/Mihomo clients
+    get Clash YAML, sing-box clients get sing-box JSON, everything
+    else (ShadowRocket, v2rayNG, Surge, Quantumult X, Loon, browsers,
+    curl, no UA) gets the plain-text node links."""
+    ua = (user_agent or "").lower()
+    if "clash" in ua or "meta" in ua or "mihomo" in ua:
+        return "clash"
+    if "singbox" in ua or "sing-box" in ua:
+        return "singbox"
+    return "plain"
+
+
 def service_active(name):
     rc, out, _ = run("systemctl is-active %s" % name)
     return out == "active"
@@ -1483,13 +1687,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _text(self, code, body):
+    def _raw(self, code, body, content_type):
         data = body.encode("utf-8")
         self.send_response(code)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _text(self, code, body):
+        self._raw(code, body, "text/plain; charset=utf-8")
 
     def _read_json(self):
         try:
@@ -1573,16 +1780,31 @@ class Handler(BaseHTTPRequestHandler):
         p = u.path
         m = re.fullmatch(r"/sub/([0-9a-f]{32})", p)
         if m:
-            # Public subscription feed: no login (Clash fetches it
+            # Public subscription feed: no login (clients fetch it
             # directly). A disabled user or unknown token gets 404; the
-            # token is never echoed back in an error body.
+            # token is never echoed back in an error body. The format
+            # follows the client's User-Agent (edgetunnel-style): Clash /
+            # Mihomo get Clash YAML, sing-box gets sing-box JSON, anything
+            # else gets the plain-text node links, one per line.
             try:
                 usr = get_user_by_sub_token(m.group(1))
                 if not usr or not usr.get("enabled"):
                     self._text(404, "not found\n")
                     return
-                lines = subscription_links(usr["username"])
-                self._text(200, "\n".join(lines) + ("\n" if lines else ""))
+                links = subscription_links(usr["username"])
+                fmt = detect_sub_format(self.headers.get("User-Agent"))
+                if fmt == "clash":
+                    nodes = [n for n in
+                             (parse_proxy_link(x) for x in links) if n]
+                    self._raw(200, clash_subscription_yaml(nodes),
+                              "application/x-yaml; charset=utf-8")
+                elif fmt == "singbox":
+                    nodes = [n for n in
+                             (parse_proxy_link(x) for x in links) if n]
+                    self._raw(200, singbox_subscription_json(nodes),
+                              "application/json; charset=utf-8")
+                else:
+                    self._text(200, "\n".join(links) + ("\n" if links else ""))
             except Exception:
                 self._text(404, "not found\n")
             return
