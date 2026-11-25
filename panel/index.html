@@ -628,18 +628,10 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.5 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.6 更新日志</div>
     <ul class="version-list">
-      <li>中文域名部署时自动转 punycode：安装时输入的节点域名 / 面板域名（含 MP_NODE_DOMAIN、MP_PANEL_DOMAIN 环境变量）若含中文，写入配置前自动转成 punycode 再保存；面板里添加 / 修改服务器时填的主机域名同样先转码再保存，之后所有地方用的都是 ASCII 域名</li>
-      <li>本地 HY2 链接支持 salamander 混淆：本地节点的链接现在也带 obfs 参数（与远程节点一致），有混淆的节点不会再丢参数</li>
-      <li>端口跳跃功能已删除：跳跃区间从用户网络根本走不通，实测只会让 HY2 超时；服务器设置与修改权限里的跳跃开关都已去掉，HY2 只用单个节点端口</li>
-      <li>修复面板迁到 D1 后流量限制键错位：前端曾把 D2 时代的服务器键写死在用户表与上限表单里，D1 的上限显示成不限、改上限会写错键；现在上限与用量都按服务器列表的真实 id 读写，添加用户与修改权限的上限输入按每台服务器动态生成</li>
-      <li>修复流量卡额度显示反了：线上数据采集脚本不写额度、远程状态接口漏掉额度，两处写死的 fallback 恰好是旧值；现在本地额度从节点配置读、远程额度从 agent 回传里带，两处 fallback 都按服务器列表动态取，公开流量页也不再显示“不限”</li>
-      <li>修复管理员 VLESS 轮换凭证在 D1 上必定失败：重启检查曾写死 443 端口，D1 的 VLESS 在 52318；现在按 sing-box 配置里 vless-in 的实际监听端口检查</li>
-      <li>节点卡片的端口与协议文字改成按实时链接推导：本地 VLESS 显示 TCP 52318、远程 VLESS 显示 REALITY + TCP 443、HY2 显示 UDP 10468，不再是写死的 D2 时代文字；链接本身不变</li>
-      <li>默认值与端口 fallback 不再悄悄用 D2 的值：节点配置缺键时报错而不是默认 443/443/2000；远程链接端口缺失时报错；预加载的服务器名 fallback 改成中性的“本地 / 远程”</li>
-      <li>安装脚本支持 VLESS 与 HY2 分端口：新增 MP_VLESS_PORT / MP_HY2_PORT；agent 里已死的 userpass 版 rotate_hy2 已删除</li>
-      <li>修复 HY2 鉴权拒掉带用户名的密码串：链接是 admin:密码 的形式，部分客户端会把整个 admin:密码 当鉴权串发过来；旧 userpass 鉴权认这种形式，改成 HTTP 鉴权后只做精确匹配就给拒了（以前通、后来不通）；现在两种形式都认</li>
+      <li>订阅链接按客户端自动适配格式（借鉴 edgetunnel 的做法）：同一个 /sub/&lt;token&gt; 链接，Clash / Mihomo 客户端拿到 Clash YAML（含手动选择组、自动选择 url-test 组与 MATCH 规则），sing-box 拿到 sing-box JSON（含选择器、urltest 组与 direct），其他客户端（ShadowRocket、v2rayNG、Surge、Quantumult X、Loon、浏览器）仍拿到纯文本节点链接；判断依据是请求的 User-Agent。管理员“复制订阅”得到的链接从此各客户端通用。Surge 仍走纯文本：Surge 不支持 Reality，面板的 VLESS+Reality 节点没法写进 Surge 配置里，硬写只会得到连不上的节点</li>
+      <li>致谢新增 edgetunnel：订阅按 User-Agent 适配格式的做法源自该项目（cmliu/edgetunnel，MIT）</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
