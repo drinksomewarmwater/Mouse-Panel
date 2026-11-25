@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.5
+# Mouse Panel 🐹 V1.1.6
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -328,6 +328,7 @@ Mouse-Panel/
 | [Micro Slats](https://reactbits.dev/backgrounds/micro-slats) | React Bits（David Haz） | 面板背景特效；按原 shader 移植为原生 WebGL2（无 React、无 ogl、无 CDN） | MIT + Commons Clause |
 | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) | Kazuhiko Arase | 面板内二维码生成（`panel/qrcode.min.js`） | MIT |
 | [V2Ray 统计 API（v2ray_api）](https://github.com/v2fly/v2ray-core) | v2fly / v2ray-core | VLESS 按用户统计用的 gRPC 统计接口与 protobuf 定义（`api/v2pb/` 为据此生成的桩代码） | MIT |
+| [edgetunnel](https://github.com/cmliu/edgetunnel) | cmliu | 订阅链接按客户端 User-Agent 适配格式的做法（Clash YAML / sing-box JSON / 纯文本链接）；面板据此自己生成各格式，不依赖 subconverter 后端 | MIT |
 
 Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpcio（Apache-2.0）与 protobuf（BSD-3-Clause），用于 VLESS 统计的 gRPC 调用。
 
@@ -346,6 +347,13 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.6 (2026-11-25)
+
+**新增**
+
+- 订阅链接按客户端自动适配格式（借鉴 edgetunnel 的做法）：同一个 `/sub/<token>` 链接，Clash / Mihomo 客户端拿到 Clash YAML（含手动选择组、自动选择 url-test 组与 MATCH 规则），sing-box 拿到 sing-box JSON（含选择器、urltest 组与 direct），其他客户端（ShadowRocket、v2rayNG、Surge、Quantumult X、Loon、浏览器）仍拿到纯文本节点链接；判断依据是请求的 User-Agent。管理员“复制订阅”得到的链接从此各客户端通用。Surge 仍走纯文本：Surge 不支持 Reality，面板的 VLESS+Reality 节点没法写进 Surge 配置里，硬写只会得到连不上的节点。
+- 致谢新增 edgetunnel：订阅按 User-Agent 适配格式的做法源自该项目（cmliu/edgetunnel，MIT）。
 
 ### V1.1.5 (2026-11-24)
 
