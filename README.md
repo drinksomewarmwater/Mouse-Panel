@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.6
+# Mouse Panel 🐹 V1.1.7
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -347,6 +347,14 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.7 (2026-11-26)
+
+**新增**
+
+- 订阅拉取时返回 Subscription-Userinfo 响应头（`upload=<字节>; download=<字节>; total=<字节>; expire=<Unix 时间戳>`），Clash / OpenClash / ShadowRocket 导入订阅后可在订阅条目上看到本月已用、总量与到期时间：已用是该用户本月在两台服务器上的用量合计，总量按每台服务器取用户上限、没设上限的取该台的月额度（管理员无每人上限，总量为两台月额度之和），到期时间取账号的到期设置、永久账号不带该字段；数值全部按面板自身的配置与统计走，不写死。
+- 用户页一键复制订阅链接：普通用户登录后在“我的流量”卡片里也能一键复制自己的订阅链接，与管理员的复制订阅同一个链接（按客户端自适应格式，Clash 导入后可看到剩余流量）；后端只返回登录者自己的链接，账号停用时按钮隐藏。
+- 每次拉取订阅自动加一个时间戳节点：空白 VLESS 节点，名为拉取时刻的北京时间（`YYYY-MM-DD HH:MM:SS`），指向 127.0.0.1:1、永不通；只进“👋手动选择”，不进任何 url-test 分组；订阅内容每次都变，OpenClash 手动更新时不再因名称无变化而跳过刷新。空订阅不加。
 
 ### V1.1.6 (2026-11-25)
 
