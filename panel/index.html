@@ -349,6 +349,12 @@
     </div>
     <div class="hint" id="u-note-d1">…</div>
     <div class="bar"><i id="u-bar-d1" style="width:0%"></i></div>
+    <div class="btns" id="u-sub-btns-d1">
+      <div class="btnrow">
+        <button onclick="copyMySubLink(this)">复制订阅</button>
+      </div>
+      <div class="hint">一个链接适配所有客户端，Clash 导入后可看到剩余流量。</div>
+    </div>
   </div>
 
   <div class="card hidden" id="user-disabled-card-d1">
@@ -395,6 +401,12 @@
     </div>
     <div class="hint" id="u-note-local">…</div>
     <div class="bar"><i id="u-bar-local" style="width:0%"></i></div>
+    <div class="btns" id="u-sub-btns-local">
+      <div class="btnrow">
+        <button onclick="copyMySubLink(this)">复制订阅</button>
+      </div>
+      <div class="hint">一个链接适配所有客户端，Clash 导入后可看到剩余流量。</div>
+    </div>
   </div>
 
   <div class="card hidden" id="user-disabled-card-local">
@@ -628,10 +640,11 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.6 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.7 更新日志</div>
     <ul class="version-list">
-      <li>订阅链接按客户端自动适配格式（借鉴 edgetunnel 的做法）：同一个 /sub/&lt;token&gt; 链接，Clash / Mihomo 客户端拿到 Clash YAML（含手动选择组、自动选择 url-test 组与 MATCH 规则），sing-box 拿到 sing-box JSON（含选择器、urltest 组与 direct），其他客户端（ShadowRocket、v2rayNG、Surge、Quantumult X、Loon、浏览器）仍拿到纯文本节点链接；判断依据是请求的 User-Agent。管理员“复制订阅”得到的链接从此各客户端通用。Surge 仍走纯文本：Surge 不支持 Reality，面板的 VLESS+Reality 节点没法写进 Surge 配置里，硬写只会得到连不上的节点</li>
-      <li>致谢新增 edgetunnel：订阅按 User-Agent 适配格式的做法源自该项目（cmliu/edgetunnel，MIT）</li>
+      <li>订阅拉取时返回 Subscription-Userinfo 响应头（upload/download/total/expire），Clash / OpenClash / ShadowRocket 导入订阅后可在订阅条目上看到本月已用、总量与到期时间：已用是该用户本月在两台服务器上的用量合计，总量按每台服务器取用户上限、没设上限的取该台的月额度（管理员无每人上限，总量为两台月额度之和），到期时间取账号的到期设置、永久账号不带该字段；数值全部按面板自身的配置与统计走，不写死</li>
+      <li>用户页一键复制订阅链接：普通用户登录后在“我的流量”卡片里也能一键复制自己的订阅链接，与管理员的复制订阅同一个链接（按客户端自适应格式，Clash 导入后可看到剩余流量）；后端只返回登录者自己的链接，账号停用时按钮隐藏</li>
+      <li>每次拉取订阅自动加一个时间戳节点：空白 VLESS 节点，名为拉取时刻的北京时间（YYYY-MM-DD HH:MM:SS），指向 127.0.0.1:1、永不通；只进“👋手动选择”，不进任何 url-test 分组；订阅内容每次都变，OpenClash 手动更新时不再因名称无变化而跳过刷新。空订阅不加</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -743,7 +756,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.6"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
+var PANEL_VERSION = "V1.1.7"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
@@ -3175,8 +3188,12 @@ function renderUser() {
     var dm = document.getElementById('user-disabled-msg-' + suf);
     var c1 = document.getElementById(suf === 'd1' ? 'user-card-d1' : 'user-card-d2');
     var c2 = document.getElementById(suf === 'd1' ? 'user-card-vless-d1' : 'user-card-vless-d2');
+    /* 复制订阅按钮只在账号全局停用时隐藏；单台超限时链接仍可用
+       （另一台节点正常），按钮保留。 */
+    var sb = document.getElementById('u-sub-btns-' + suf);
     if (!u.enabled) {
       c1.classList.add('hidden'); c2.classList.add('hidden');
+      if (sb) sb.classList.add('hidden');
       dc.classList.remove('hidden');
       dm.textContent =
         u.disabled_reason === 'over_limit'
@@ -3190,6 +3207,7 @@ function renderUser() {
     } else {
       dc.classList.add('hidden');
       c1.classList.remove('hidden'); c2.classList.remove('hidden');
+      if (sb) sb.classList.remove('hidden');
     }
   });
   var d = userLinksData;
@@ -3263,6 +3281,21 @@ function userStatus(x, overAny, pending) {
    复制失败时把链接打到 toast 里，管理员可以手动复制。 ---- */
 function copySubLink(username, btn) {
   fetch('/api/admin/users/' + encodeURIComponent(username) + '/sub', { cache: 'no-store' })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.d.sub_url) throw new Error((res.d && res.d.error) || '获取订阅链接失败');
+      var url = res.d.sub_url;
+      copyStr(url, btn, function (ok) {
+        if (!ok) showToast('复制失败，订阅链接：' + url, true);
+      });
+    })
+    .catch(function (e) { showToast('获取订阅链接失败：' + e.message, true); });
+}
+/* ---- 用户页一键复制订阅链接：取自己的公开订阅地址（/sub/<token>），
+   与管理员的复制订阅同一个链接：按客户端自适应格式，Clash 导入后
+   可在订阅条目上看到剩余流量。只返回登录者自己的链接。 ---- */
+function copyMySubLink(btn) {
+  fetch('/api/user/sub', { cache: 'no-store' })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok || !res.d.sub_url) throw new Error((res.d && res.d.error) || '获取订阅链接失败');
