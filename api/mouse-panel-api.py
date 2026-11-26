@@ -32,7 +32,7 @@ import threading
 import time
 import urllib.parse
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse, parse_qs, unquote
@@ -1203,6 +1203,13 @@ def clash_subscription_yaml(nodes):
     Generated as text (the API runs on stdlib only, no PyYAML)."""
     nodes = _dedupe_names([n for n in nodes if n])
     names = [n["name"] for n in nodes]
+    # Blank timestamp node: in proxies and the manual-select group
+    # only — never in the url-test group, a dead node must not be
+    # auto-tested. No real nodes -> no timestamp node either (an empty
+    # subscription stays empty).
+    ts = timestamp_proxy_node() if nodes else None
+    proxy_nodes = nodes + [ts] if ts else nodes
+    manual_names = names + [ts["name"]] if ts else names
     L = []
     L.append("port: 7890")
     L.append("socks-port: 7891")
@@ -1210,7 +1217,7 @@ def clash_subscription_yaml(nodes):
     L.append("mode: rule")
     L.append("log-level: info")
     L.append("proxies:")
-    for n in nodes:
+    for n in proxy_nodes:
         L.append("  - name: %s" % _yaml_str(n["name"]))
         if n["kind"] == "vless":
             L.append("    type: vless")
@@ -1240,7 +1247,7 @@ def clash_subscription_yaml(nodes):
     L.append("  - name: %s" % _yaml_str("👋手动选择"))
     L.append("    type: select")
     L.append("    proxies:")
-    for name in names:
+    for name in manual_names:
         L.append("      - %s" % _yaml_str(name))
     L.append("  - name: %s" % _yaml_str("⚡自动选择"))
     L.append("    type: url-test")
@@ -1260,8 +1267,11 @@ def singbox_subscription_json(nodes):
     final outbound is the selector."""
     nodes = _dedupe_names([n for n in nodes if n])
     names = [n["name"] for n in nodes]
+    # Blank timestamp node: an outbound and a selector member only —
+    # never in the urltest group. No real nodes -> no timestamp node.
+    ts = timestamp_proxy_node() if nodes else None
     outbounds = []
-    for n in nodes:
+    for n in (nodes + [ts] if ts else nodes):
         if n["kind"] == "vless":
             tls = {"enabled": True, "server_name": n["sni"],
                    "utls": {"enabled": True,
@@ -1286,7 +1296,7 @@ def singbox_subscription_json(nodes):
                               "password": n["obfs_password"]}
             outbounds.append(ob)
     outbounds.append({"type": "selector", "tag": "👋手动选择",
-                      "outbounds": names})
+                      "outbounds": names + [ts["name"]] if ts else names})
     outbounds.append({"type": "urltest", "tag": "⚡自动选择",
                       "outbounds": names,
                       "url": "http://www.gstatic.com/generate_204",
@@ -1300,6 +1310,110 @@ def singbox_subscription_json(nodes):
         "route": {"rules": [], "final": "👋手动选择"},
     }
     return json.dumps(cfg, ensure_ascii=False, indent=2) + "\n"
+
+
+# --- timestamp node (blank node, forces subscription refreshes) ---
+# Same idea as the sublink service's timestamp node (2026-11-24): a
+# blank VLESS node named with the pull time, so every /sub fetch
+# changes the subscription content and clients never skip a refresh
+# as "nothing changed" (OpenClash manual updates included). The node
+# points at 127.0.0.1:1 and never connects; it only ever appears in
+# the manual-select group, never in a url-test group.
+TIMESTAMP_NODE_UUID = "00000000-0000-0000-0000-000000000000"
+
+
+def timestamp_node_name():
+    """Beijing pull time, YYYY-MM-DD HH:MM:SS. Fresh on every call,
+    so every /sub fetch gets a new node name."""
+    now_bj = datetime.now(timezone.utc) + timedelta(hours=8)
+    return now_bj.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def timestamp_proxy_node():
+    """The blank timestamp node, as a parsed-node dict (same shape
+    parse_proxy_link returns): VLESS at 127.0.0.1:1, zero UUID."""
+    return {"kind": "vless", "name": timestamp_node_name(),
+            "uuid": TIMESTAMP_NODE_UUID,
+            "server": "127.0.0.1", "port": 1,
+            "security": "tls", "pbk": "", "fp": "chrome",
+            "sni": "127.0.0.1", "sid": "", "flow": "",
+            "network": "tcp"}
+
+
+def timestamp_proxy_uri():
+    """The same blank node as a VLESS URI (plain-text subscriptions)."""
+    return ("vless://%s@127.0.0.1:1?encryption=none&security=tls"
+            "&sni=127.0.0.1&type=tcp#%s"
+            % (TIMESTAMP_NODE_UUID,
+               urllib.parse.quote(timestamp_node_name(), safe="")))
+
+
+# --- Subscription-Userinfo header (traffic bar in clients) ---
+# Clash / Mihomo / OpenClash / ShadowRocket read the
+# Subscription-Userinfo response header on subscription fetch and show
+# a used/total traffic bar (edgetunnel's subscriptions do the same).
+# Format: upload=<bytes>; download=<bytes>; total=<bytes>;
+# expire=<unix>. Any field may be missing; total=0 would mean
+# unlimited, so a total that cannot be computed is omitted instead.
+
+def server_quota_gb(server):
+    """Monthly quota (GB) for one server, from the panel's own config
+    only — never a literal. Local: the servers.json entry, then
+    data.json, then node.json. Remote: the servers.json entry only; a
+    subscription fetch must not SSH to the remote server. Returns a
+    float, or None when no config carries a quota."""
+    q = server.get("quota_gb")
+    if q is None and server.get("type") == "local":
+        try:
+            q = load_data().get("quota_gb")
+        except Exception:
+            q = None
+        if q is None:
+            q = load_node().get("quota_gb")
+    try:
+        return float(q) if q is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def subscription_userinfo_header(user_row):
+    """Subscription-Userinfo header value for one user. upload/download
+    are this user's current-Beijing-month tx/rx in bytes across all
+    servers (usage_daily, via user_usage). total is, per server, the
+    user's limit from limits_json, else that server's monthly quota
+    from the panel config (admin has no per-user limits, so the
+    admin's total is the sum of the server quotas). When any server's
+    contribution is unknowable the total is omitted entirely — never a
+    guessed number. expire is the user's expires_at (Unix seconds),
+    omitted when the account is permanent. Returns the header string,
+    or None when even the usage cannot be read."""
+    usage = user_usage(user_row["username"])
+    limits = parse_limits(user_row)
+    total_gb = 0.0
+    total_known = True
+    for s in load_servers():
+        sid = s.get("id")
+        if not sid:
+            continue
+        lim = limits.get(sid)
+        if lim is not None:
+            total_gb += lim
+        else:
+            q = server_quota_gb(s)
+            if q is None:
+                total_known = False
+                break
+            total_gb += q
+    parts = ["upload=%d" % int(usage["month_tx"]),
+             "download=%d" % int(usage["month_rx"])]
+    if total_known:
+        # GB are decimal here, matching the panel's own convention
+        # (server_traffic_status divides bytes by 1e9).
+        parts.append("total=%d" % int(total_gb * 1e9))
+    exp = parse_expires_at(user_row)
+    if exp is not None:
+        parts.append("expire=%d" % exp)
+    return "; ".join(parts)
 
 
 def detect_sub_format(user_agent):
@@ -1687,16 +1801,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _raw(self, code, body, content_type):
+    def _raw(self, code, body, content_type, extra_headers=None):
         data = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        for k, v in (extra_headers or []):
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
-    def _text(self, code, body):
-        self._raw(code, body, "text/plain; charset=utf-8")
+    def _text(self, code, body, extra_headers=None):
+        self._raw(code, body, "text/plain; charset=utf-8", extra_headers)
 
     def _read_json(self):
         try:
@@ -1792,19 +1908,33 @@ class Handler(BaseHTTPRequestHandler):
                     self._text(404, "not found\n")
                     return
                 links = subscription_links(usr["username"])
+                # Traffic header, best effort: if the usage cannot be
+                # read, the subscription still works, just without
+                # the traffic bar in the client.
+                try:
+                    userinfo = subscription_userinfo_header(usr)
+                except Exception:
+                    userinfo = None
+                extra = ([("Subscription-Userinfo", userinfo)]
+                         if userinfo else None)
                 fmt = detect_sub_format(self.headers.get("User-Agent"))
                 if fmt == "clash":
                     nodes = [n for n in
                              (parse_proxy_link(x) for x in links) if n]
                     self._raw(200, clash_subscription_yaml(nodes),
-                              "application/x-yaml; charset=utf-8")
+                              "application/x-yaml; charset=utf-8", extra)
                 elif fmt == "singbox":
                     nodes = [n for n in
                              (parse_proxy_link(x) for x in links) if n]
                     self._raw(200, singbox_subscription_json(nodes),
-                              "application/json; charset=utf-8")
+                              "application/json; charset=utf-8", extra)
                 else:
-                    self._text(200, "\n".join(links) + ("\n" if links else ""))
+                    # Plain text has no groups; the timestamp line is
+                    # what makes each fetch differ. An empty
+                    # subscription stays empty (no links -> no node).
+                    body = ("\n".join(links + [timestamp_proxy_uri()]) + "\n"
+                            if links else "")
+                    self._text(200, body, extra)
             except Exception:
                 self._text(404, "not found\n")
             return
@@ -1924,6 +2054,29 @@ class Handler(BaseHTTPRequestHandler):
                     for s in load_servers()
                 ]
                 self._json(200, usage)
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+            return
+        if p == "/api/user/sub":
+            # The caller's OWN subscription URL (/sub/<token>), for the
+            # user page's one-click copy button. Unlike the admin
+            # endpoint this takes no username: a regular user can only
+            # ever get their own token, never another user's.
+            me = self._require()
+            if not me:
+                return
+            if not me["enabled"]:
+                self._json(403, {"error": "用户已停用",
+                                 "disabled_reason": me["disabled_reason"]})
+                return
+            try:
+                token = get_or_create_sub_token(me["username"])
+                if not token:
+                    self._json(404, {"error": "用户不存在"})
+                    return
+                proto = self.headers.get("X-Forwarded-Proto") or "https"
+                host = self.headers.get("Host") or "localhost"
+                self._json(200, {"sub_url": "%s://%s/sub/%s" % (proto, host, token)})
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
