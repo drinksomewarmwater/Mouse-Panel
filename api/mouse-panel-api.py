@@ -2884,6 +2884,18 @@ class Handler(BaseHTTPRequestHandler):
                     conn = db()
                     if action == "password":
                         password = body.get("password") or ""
+                        if not password and "allow_pw_change" in body:
+                            # Only the "allow self password change" toggle
+                            # was flipped: apply it at once, no credential
+                            # change and no HY2/VLESS sync.
+                            conn.execute(
+                                "UPDATE users SET allow_pw_change=? WHERE username=?",
+                                (1 if body.get("allow_pw_change") else 0, username),
+                            )
+                            conn.commit()
+                            conn.close()
+                            self._json(200, {"ok": True})
+                            return
                         if len(password) < 6:
                             self._json(400, {"error": "密码至少 6 位"})
                             conn.close()
@@ -2977,6 +2989,17 @@ class Handler(BaseHTTPRequestHandler):
                         # carry over. The HY2 link carries the username,
                         # so it changes with the name.
                         new = (body.get("new_username") or "").strip()
+                        if not new and "allow_name_change" in body:
+                            # Only the "allow self rename" toggle was
+                            # flipped: apply it at once, no rename.
+                            conn.execute(
+                                "UPDATE users SET allow_name_change=? WHERE username=?",
+                                (1 if body.get("allow_name_change") else 0, username),
+                            )
+                            conn.commit()
+                            conn.close()
+                            self._json(200, {"ok": True})
+                            return
                         err = validate_new_username(username, new, user.get("role") == "admin")
                         if err:
                             self._json(400, {"error": err})
