@@ -536,6 +536,7 @@ def ensure_user_columns():
         ("limits_json", "ALTER TABLE users ADD COLUMN limits_json TEXT"),
         ("disabled_json", "ALTER TABLE users ADD COLUMN disabled_json TEXT"),
         ("allow_pw_change", "ALTER TABLE users ADD COLUMN allow_pw_change INTEGER NOT NULL DEFAULT 1"),
+        ("allow_name_change", "ALTER TABLE users ADD COLUMN allow_name_change INTEGER NOT NULL DEFAULT 1"),
         ("expires_at", "ALTER TABLE users ADD COLUMN expires_at INTEGER"),
         # "hop" is a leftover from the port-hopping feature (removed
         # 2026-11-23, V1.1.4): the column stays in the schema so old DBs
@@ -711,6 +712,69 @@ def get_user(username):
     return dict(row) if row else None
 
 
+def get_admin():
+    """The single admin user, by role (not by the literal username
+    'admin'): the admin may rename their panel username, so no lookup
+    may assume it is still 'admin'."""
+    conn = db()
+    row = conn.execute("SELECT * FROM users WHERE role='admin'").fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def validate_new_username(old, new, is_admin):
+    """Check a rename target. Returns an error string, or None when ok.
+    The name 'admin' is reserved for the admin user."""
+    new = (new or "").strip()
+    if not new:
+        return "新用户名不能为空"
+    if new == old:
+        return "新用户名与当前相同"
+    if not re.fullmatch(USERNAME_RE, new):
+        return USERNAME_ERR
+    if not is_admin and new == "admin":
+        return "用户名 admin 保留给管理员"
+    if get_user(new):
+        return "用户名已存在"
+    return None
+
+
+def rename_user(old, new, allow_name_change=None):
+    """Rename a user, carrying everything over: limits, credentials,
+    subscription token, VLESS port/UUID and usage history (usage_daily
+    + counters), plus the per-user playlist and music directory. Only
+    the username changes, so no link needs re-issuing except the HY2
+    link, which carries the username.
+    The sing-box admin label 'admin' (vless-in name + stats.users) is a
+    fixed role label, not the panel username, so it is untouched here;
+    the poller attributes that label to the role-admin user."""
+    conn = db()
+    conn.execute("UPDATE users SET username=? WHERE username=?", (new, old))
+    if allow_name_change is not None:
+        conn.execute("UPDATE users SET allow_name_change=? WHERE username=?",
+                     (1 if allow_name_change else 0, new))
+    conn.execute("UPDATE counters SET username=? WHERE username=?", (new, old))
+    conn.execute("UPDATE usage_daily SET username=? WHERE username=?", (new, old))
+    conn.commit()
+    conn.close()
+    old_pl = playlist_path_for(old)
+    new_pl = playlist_path_for(new)
+    if os.path.exists(old_pl) and not os.path.exists(new_pl):
+        try:
+            os.rename(old_pl, new_pl)
+        except OSError:
+            pass
+    old_md = music_dir_for(old)
+    new_md = music_dir_for(new)
+    if os.path.isdir(old_md) and not os.path.exists(new_md):
+        try:
+            os.rename(old_md, new_md)
+        except OSError:
+            pass
+    sync_hy2_users_bg()
+    sync_vless_users_bg()
+
+
 def list_users():
     ensure_user_columns()
     backfill_vless()
@@ -718,7 +782,7 @@ def list_users():
     rows = conn.execute(
         "SELECT id, username, role, limit_gb, limits_json, disabled_json, enabled,"
         " disabled_reason, created_at, hy2_password, pw_set, vless_uuid, vless_port,"
-        " allow_pw_change, expires_at"
+        " allow_pw_change, allow_name_change, expires_at"
         " FROM users ORDER BY role DESC, username"
     ).fetchall()
     conn.close()
@@ -849,9 +913,9 @@ def data_updated():
 
 
 def admin_local_hy2_link():
-    u = get_user("admin")
+    u = get_admin()
     pw = urllib.parse.quote(u["hy2_password"], safe="")
-    return local_hy2_link("admin", pw)
+    return local_hy2_link(u["username"], pw)
 
 
 def to_idna(domain):
@@ -1548,7 +1612,7 @@ def rotate_vless():
     # must stop working. A token-write failure must not mask a rotation
     # that already succeeded, so it is only logged.
     try:
-        regenerate_sub_token("admin")
+        regenerate_sub_token(get_admin()["username"])
     except Exception as e:
         log.error("rotate_vless: sub_token regen failed: %s", e)
     return new_link
@@ -1563,7 +1627,7 @@ def rotate_admin_hy2():
     new_pw = secrets.token_hex(16)
     conn = db()
     conn.execute("UPDATE users SET hy2_password=?, sub_token=?"
-                 " WHERE username='admin'",
+                 " WHERE role='admin'",
                  (new_pw, secrets.token_hex(16)))
     conn.commit()
     conn.close()
@@ -1659,10 +1723,10 @@ def remote_vless_link(server, d):
 
 def remote_links(server):
     d = remote_read(server)
-    admin = get_user("admin")
+    admin = get_admin()
     pw = urllib.parse.quote(admin["hy2_password"], safe="")
     return {"vless": remote_vless_link(server, d),
-            "hy2": remote_hy2_link(server, "admin", pw)}
+            "hy2": remote_hy2_link(server, admin["username"], pw)}
 
 
 def remote_status(server):
@@ -1701,7 +1765,7 @@ def remote_rotate_vless(server):
     # The admin's remote VLESS credential changed, so the old
     # subscription URL must stop working (same reason as rotate_vless).
     try:
-        regenerate_sub_token("admin")
+        regenerate_sub_token(get_admin()["username"])
     except Exception as e:
         log.error("remote_rotate_vless: sub_token regen failed: %s", e)
     return remote_links(server)["vless"]
@@ -1946,7 +2010,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"username": me["username"], "role": me["role"],
                             "enabled": bool(me["enabled"]),
                             "disabled_reason": me["disabled_reason"],
-                            "allow_pw_change": bool(me.get("allow_pw_change", 1))})
+                            "allow_pw_change": bool(me.get("allow_pw_change", 1)),
+                            "allow_name_change": bool(me.get("allow_name_change", 1))})
             return
         if p == "/api/links":
             if not self._require(admin_only=True):
@@ -2115,12 +2180,12 @@ class Handler(BaseHTTPRequestHandler):
             if not self._require(admin_only=True):
                 return
             username = unquote(m.group(1))
-            if username == "admin":
-                self._json(400, {"error": "管理员请用节点卡片的轮换凭证"})
-                return
             user = get_user(username)
             if not user:
                 self._json(404, {"error": "用户不存在"})
+                return
+            if user.get("role") == "admin":
+                self._json(400, {"error": "管理员请用节点卡片的轮换凭证"})
                 return
             if not user.get("pw_set") or user.get("disabled_reason") == "pending_setup":
                 self._json(400, {"error": "该用户尚未设置密码，无法轮换凭证"})
@@ -2291,6 +2356,41 @@ class Handler(BaseHTTPRequestHandler):
                     sync_hy2_users_bg()
                     sync_vless_users_bg()
                     self._json(200, {"ok": True})
+                except Exception as e:
+                    self._json(500, {"ok": False, "error": str(e)})
+            return
+        if p == "/api/user/rename":
+            # A regular user renames themselves. Same gate as the self
+            # password change: the admin can disable it per user
+            # (allow_name_change). Only the username changes: the
+            # password, HY2 password, VLESS UUID/port, subscription
+            # token, limits and usage history all carry over. The
+            # session cookie is re-issued for the new name so the user
+            # stays logged in.
+            me = self._require()
+            if not me:
+                return
+            if me["role"] == "admin":
+                self._json(403, {"error": "管理员请在用户管理中修改用户名"})
+                return
+            body = self._read_json()
+            new = (body.get("new_username") or "").strip()
+            with LOCK:
+                try:
+                    user = get_user(me["username"])
+                    if not user:
+                        self._json(404, {"error": "用户不存在"})
+                        return
+                    if not user.get("allow_name_change", 1):
+                        self._json(403, {"error": "功能被管理员禁用"})
+                        return
+                    err = validate_new_username(me["username"], new, False)
+                    if err:
+                        self._json(400, {"error": err})
+                        return
+                    rename_user(me["username"], new)
+                    token, _ = sign_session(new)
+                    self._json(200, {"ok": True, "username": new}, set_cookie=token)
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
@@ -2758,24 +2858,24 @@ class Handler(BaseHTTPRequestHandler):
                     # never touch it here, and do not trigger a HY2 sync.
                     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
                     conn = db()
-                    conn.execute("UPDATE users SET pw_hash=? WHERE username='admin'", (pw_hash,))
+                    conn.execute("UPDATE users SET pw_hash=? WHERE role='admin'", (pw_hash,))
                     conn.commit()
                     conn.close()
                     self._json(200, {"ok": True})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
-        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry)", p)
+        m = re.fullmatch(r"/api/admin/users/([^/]+)/(password|limit|enable|expiry|rename)", p)
         if m:
             if not self._require(admin_only=True):
                 return
             username, action = unquote(m.group(1)), m.group(2)
-            if username == "admin" and action in ("password", "enable"):
-                self._json(400, {"error": "不能在这里改管理员的密码或停用管理员"})
-                return
             user = get_user(username)
             if not user:
                 self._json(404, {"error": "用户不存在"})
+                return
+            if user.get("role") == "admin" and action in ("password", "enable"):
+                self._json(400, {"error": "不能在这里改管理员的密码或停用管理员"})
                 return
             body = self._read_json()
             with LOCK:
@@ -2870,6 +2970,31 @@ class Handler(BaseHTTPRequestHandler):
                         sync_hy2_users_bg()
                         sync_vless_users_bg()
                         self._json(200, {"ok": True, "expiry_cleared": expiry_cleared})
+                    elif action == "rename":
+                        # Rename only: credentials, subscription token,
+                        # VLESS port/UUID, limits and usage history all
+                        # carry over. The HY2 link carries the username,
+                        # so it changes with the name.
+                        new = (body.get("new_username") or "").strip()
+                        err = validate_new_username(username, new, user.get("role") == "admin")
+                        if err:
+                            self._json(400, {"error": err})
+                            conn.close()
+                            return
+                        allow = body.get("allow_name_change")
+                        conn.close()
+                        rename_user(username, new,
+                                    allow if allow is not None else None)
+                        me = self._me()
+                        if me and me["username"] == username:
+                            # The caller renamed themselves: re-issue the
+                            # session cookie for the new name so they stay
+                            # logged in.
+                            token, _ = sign_session(new)
+                            self._json(200, {"ok": True, "username": new},
+                                       set_cookie=token)
+                        else:
+                            self._json(200, {"ok": True, "username": new})
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)})
             return
@@ -2994,11 +3119,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self._require(admin_only=True):
             return
         username = unquote(m.group(1))
-        if username == "admin":
-            self._json(400, {"error": "不能删除管理员"})
-            return
-        if not get_user(username):
+        user = get_user(username)
+        if not user:
             self._json(404, {"error": "用户不存在"})
+            return
+        if user.get("role") == "admin":
+            self._json(400, {"error": "不能删除管理员"})
             return
         with LOCK:
             try:
