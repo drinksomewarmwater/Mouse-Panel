@@ -24,6 +24,9 @@ Per-user VLESS traffic counting (v2ray_api):
 - The admin inbound (vless-in) is included in stats.users (as "admin"),
   so the admin's VLESS traffic is counted per user. The admin has no
   per-user limit, so counting it never triggers limit enforcement.
+  "admin" here is a fixed role label for the admin inbound, not the
+  panel username: the poller attributes it to the user with role=admin,
+  so it stays correct even if the admin renames their panel username.
 - A reload resets the in-memory v2ray counters; the poller treats a
   lower reading as a reset (counts only the new value, never negative).
 
