@@ -50,7 +50,7 @@
   #confirm-modal-inputs .confirm-modal-field.checkbox-field label { margin: 0; color: #c7d0db; font-size: 14px; }
   #confirm-modal-inputs .confirm-modal-field.checkbox-field input { width: auto; padding: 0; background: none; border: none; }
   .confirm-modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
-  /* ---- 修改权限弹窗：操作项纵向排布，整行可点 ---- */
+  /* ---- 管理弹窗：操作项纵向排布，整行可点 ---- */
   .perm-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
   .perm-actions button { width: 100%; text-align: left; background: transparent; border: 1px solid #2a3444; color: #e6e6e6; padding: 11px 14px; font-size: 14px; border-radius: 10px; }
   .perm-actions button:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
@@ -300,7 +300,7 @@
 <div class="wrap hidden" id="app-view">
   <div class="topbar">
     <h1><span id="panel-name">鼠鼠面板</span></h1>
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row transport"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap"><button class="bgm-btn" id="bgm-btn" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row transport"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button class="user-chname-btn hidden" onclick="userChangeName(this)">修改用户名</button><button onclick="logout()">退出登录</button></div>
   </div>
   <div class="sub">
     <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
@@ -560,7 +560,7 @@
   <div class="hint">节点链接等同于密码，请勿转发。面板由账号登录保护。「轮换凭证」会立刻作废旧链接，只认新链接，点之前确认各设备都方便换新链接。移动鼠标扰动背景波纹，点击页面任意处激起水花。</div>
 
   <div class="mobile-meta">
-    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row transport"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button onclick="logout()">退出登录</button></div>
+    <div class="who"><div class="bgm-wrap" id="bgm-wrap-m"><button class="bgm-btn" id="bgm-btn-m" title="背景音乐">🎵</button><div class="bgm-bar" id="bgm-bar-m"><div class="bgm-cover"><div class="bgm-cover-name"><span></span></div></div><div class="bgm-bar-row transport"><button class="bgm-bar-btn bgm-bar-prev" title="上一首">⏮</button><button class="bgm-bar-btn bgm-bar-play" title="暂停/播放">▶</button><button class="bgm-bar-btn bgm-bar-next" title="下一首">⏭</button></div><div class="bgm-bar-row"><button class="bgm-bar-btn bgm-bar-mode" title="循环模式">🔁 循环播放</button><button class="bgm-bar-btn bgm-bar-list" title="播放列表">📋 播放列表</button></div></div></div><span class="who-name"></span><button class="user-chpw-btn hidden" onclick="userChangePw(this)">修改密码</button><button class="user-chname-btn hidden" onclick="userChangeName(this)">修改用户名</button><button onclick="logout()">退出登录</button></div>
     <div class="sub">
       <div>数据每 5 分钟更新 · <span class="updated">加载中…</span></div>
     </div>
@@ -644,6 +644,8 @@
     <ul class="version-list">
       <li>流量卡片里今日三项的顺序改为今日入站、今日出站在前，今日使用（入站+出站）放最后；管理员与普通用户页面同步调整</li>
       <li>管理员流量卡的月度四项顺序改为本月合计、月度额度、入站、出站，额度紧跟合计</li>
+      <li>用户管理：管理员页每行的“修改密码/修改权限”统一为“管理”入口；管理里新增“修改用户名”，普通用户也能在自己的页面改用户名，管理员可按用户设置是否允许</li>
+      <li>改用户名只改名字：登录密码、HY2 密码、VLESS 链接、订阅地址、流量上限与用量记录都不变；HY2 链接里的用户名会跟着变，改名后需用新用户名重新登录</li>
       <li>修复管理员 VLESS 流量不进按用户统计：vless-in 入站用户加上 name admin，v2ray_api 的 stats.users 名单加上 admin，采集器此后正常统计管理员的 VLESS 用量；此前漏记的无法补回</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
@@ -1441,11 +1443,11 @@ function hidePlaylistModal() {
 playlistModal.addEventListener('click', function (e) { if (e.target === playlistModal) hidePlaylistModal(); });
 document.getElementById('playlist-close-btn').addEventListener('click', hidePlaylistModal);
 
-/* ---- 修改权限弹窗 (display-type: click the backdrop to close).
-   除删除外的用户操作都收进这里：流量设置、修改密码、到期时间、
-   停用用户（已停用时显示启用用户）。点某一项后本弹窗留在下层，对应的
+/* ---- 管理弹窗 (display-type: click the backdrop to close).
+   除删除外的用户操作都收进这里：修改用户名、流量设置、修改密码、
+   到期时间、停用用户（已停用时显示启用用户）。点某一项后本弹窗留在下层，对应的
    设置弹窗盖在上面；设置弹窗关掉后本弹窗还在，可继续点别的项，点空白处
-   或“关闭”才收回本弹窗。确认弹窗的 FLIP 起点用触发本弹窗的“修改权限”按钮。 ---- */
+   或“关闭”才收回本弹窗。确认弹窗的 FLIP 起点用触发本弹窗的“管理”按钮。 ---- */
 var permModal = document.getElementById('perm-modal');
 var permModalCard = document.getElementById('perm-modal-card');
 var permSrcBtn = null;
@@ -1469,13 +1471,14 @@ function permGo(fn) {
 function showPermModal(username, btn) {
   var x = usersByName[username] || {};
   var pending = x.disabled_reason === 'pending_setup' || !x.pw_set;
-  var u = { username: username, limits: x.limits || {}, expiresAt: x.expires_at, enabled: x.enabled, allowPwChange: x.allow_pw_change !== 0, hy2Password: pending ? '未设置' : (x.hy2_password || '—') };
+  var u = { username: username, limits: x.limits || {}, expiresAt: x.expires_at, enabled: x.enabled, allowPwChange: x.allow_pw_change !== 0, allowNameChange: x.allow_name_change !== 0, hy2Password: pending ? '未设置' : (x.hy2_password || '—') };
   permUser = u;
   permSrcBtn = btn;
-  document.getElementById('perm-modal-title').textContent = '修改权限 — ' + username;
+  document.getElementById('perm-modal-title').textContent = '管理 — ' + username;
   var box = document.getElementById('perm-modal-actions');
   box.innerHTML = '';
   var items = [
+    { label: '修改用户名', fn: function(u, b){ renameUser(u.username, b, u.allowNameChange); } },
     { label: '流量设置', fn: function(u, b){ setLimit(u.username, u.limits, b); } },
     { label: '修改密码', fn: function(u, b){ resetPw(u.username, b, u.allowPwChange, u.hy2Password); } },
     { label: '到期时间', fn: function(u, b){ setExpiry(u.username, u.expiresAt, b); } },
@@ -1489,6 +1492,32 @@ function showPermModal(username, btn) {
     b.type = 'button';
     b.textContent = it.label;
     if (it.danger) b.className = 'danger';
+    b.addEventListener('click', function(){ permGo(it.fn); });
+    box.appendChild(b);
+  });
+  modalShow(permModal, permModalCard, btn);
+}
+/* 管理员自己的管理弹窗：只有改用户名与改密码两项（管理员不限流、
+   不到期，凭证轮换在节点卡片上）。与普通用户的管理弹窗共用同一个
+   perm-modal 容器。 */
+function showAdminManageModal(btn) {
+  var admin = null;
+  Object.keys(usersByName).forEach(function (k) { if (usersByName[k].role === 'admin') admin = usersByName[k]; });
+  var username = (admin && admin.username) || (ME && ME.username) || 'admin';
+  var u = { username: username, allowNameChange: admin ? admin.allow_name_change !== 0 : true };
+  permUser = u;
+  permSrcBtn = btn;
+  document.getElementById('perm-modal-title').textContent = '管理 — ' + username;
+  var box = document.getElementById('perm-modal-actions');
+  box.innerHTML = '';
+  var items = [
+    { label: '修改用户名', fn: function(u, b){ renameUser(u.username, b, u.allowNameChange); } },
+    { label: '修改密码', fn: function(u, b){ resetAdminPw(b); } },
+  ];
+  items.forEach(function (it) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
     b.addEventListener('click', function(){ permGo(it.fn); });
     box.appendChild(b);
   });
@@ -2755,6 +2784,7 @@ function showApp() {
   bgmTryAutoplay();
   document.querySelectorAll('.who-name').forEach(function(el){ el.textContent = '当前用户：' + ME.username + (ME.role === 'admin' ? '（管理员）' : ''); });
   document.querySelectorAll('.user-chpw-btn').forEach(function(el){ el.classList.toggle('hidden', ME.role === 'admin'); });
+  document.querySelectorAll('.user-chname-btn').forEach(function(el){ el.classList.toggle('hidden', ME.role === 'admin'); });
   if (ME.role === 'admin') {
     document.getElementById('admin-nav').classList.remove('hidden');
     document.getElementById('view-user').classList.add('hidden');
@@ -2818,6 +2848,40 @@ function userChangePw(btn) {
           { label: '当前密码', type: 'password', placeholder: '输入当前密码' },
           { label: '新密码', type: 'password', placeholder: '新密码（至少 6 位）' },
           { label: '确认新密码', type: 'password', placeholder: '再输一次新密码' },
+        ] }
+      );
+    })
+    .catch(function(e){ showToast('加载失败：' + e.message, true); });
+}
+
+function userChangeName(btn) {
+  fetch('/api/me', { cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(me){
+      ME = me;
+      if (!me.allow_name_change) {
+        showConfirm('修改用户名', '功能被管理员禁用', btn, function(){});
+        return;
+      }
+      showConfirm(
+        '修改用户名',
+        '只改用户名：登录密码、HY2 密码、VLESS 链接、订阅地址、流量上限与用量记录都不变；HY2 链接里的用户名会跟着变。',
+        btn,
+        function(v){
+          if (!v) return;
+          var name = (v[0] || '').trim();
+          if (!name) { showToast('新用户名不能为空。', true); return; }
+          fetch('/api/user/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_username: name }) })
+            .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+            .then(function(res){
+              if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
+              showToast('已改名：' + me.username + ' → ' + name + '。');
+              location.reload();
+            })
+            .catch(function(e){ showToast('修改失败：' + e.message, true); });
+        },
+        { inputs: [
+          { label: '新用户名', type: 'text', placeholder: '2-32 个字符，中文/字母/数字/下划线/横线' },
         ] }
       );
     })
@@ -3345,7 +3409,7 @@ function loadUsers() {
       var all = d.users || [];
       var admin = null;
       var users = [];
-      all.forEach(function(x){ if (x.username === 'admin') admin = x; else users.push(x); });
+      all.forEach(function(x){ if (x.role === 'admin') admin = x; else users.push(x); });
       usersByName = {};
       all.forEach(function (x) { usersByName[x.username] = x; });
       var html = '<table class="utable"><tr><th>用户名</th><th>权限</th><th>每月上限</th><th>本月已用</th><th>今日</th><th>状态</th><th>到期时间</th><th>订阅</th><th>操作</th></tr>';
@@ -3353,8 +3417,8 @@ function loadUsers() {
         // 管理员的每月上限与本月已用也按普通用户（公用）的格式：每台服务器各一行。
         var aLimHtml = svLimitLines(admin.limits || {});
         var aMonthHtml = svMonthLines(admin.servers || {});
-        html += '<tr><td data-label="用户名">admin</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'admin\', this)">复制订阅</button></td>'
-          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="resetAdminPw(this)">修改密码</button></div></td></tr>';
+        html += '<tr><td data-label="用户名">' + esc(admin.username) + '</td><td data-label="权限">管理员</td><td data-label="每月上限">' + aLimHtml + '</td><td data-label="本月已用">' + aMonthHtml + '</td><td data-label="今日">' + fmtAuto(admin.today_total || 0) + '</td><td data-label="状态">正常</td><td data-label="到期时间">永久</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'' + esc(admin.username) + '\', this)">复制订阅</button></td>'
+          + '<td class="acts"><div class="acts-grid"><button class="small ghost" onclick="showAdminManageModal(this)">管理</button></div></td></tr>';
       }
       users.forEach(function(x){
         var lim = x.limits || {};
@@ -3366,7 +3430,7 @@ function loadUsers() {
         var st = userStatus(x, overAny, pending);
         html += '<tr><td data-label="用户名">' + esc(x.username) + '</td><td data-label="权限">用户</td><td data-label="每月上限">' + limHtml + '</td><td data-label="本月已用">' + monthHtml + '</td><td data-label="今日" class="nowrap">' + fmtAuto(x.today_total || 0) + '</td><td data-label="状态" class="nowrap' + (st.cls ? ' bad' : '') + '">' + st.text + '</td><td data-label="到期时间" class="nowrap">' + expiryCell(x) + '</td><td data-label="订阅"><button class="small ghost" onclick="copySubLink(\'' + esc(x.username) + '\', this)">复制订阅</button></td>'
           + '<td class="acts"><div class="acts-grid">'
-          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', this)">修改权限</button>'
+          + '<button class="small ghost" onclick="showPermModal(\'' + esc(x.username) + '\', this)">管理</button>'
           + '<button class="small danger" onclick="delUser(\'' + esc(x.username) + '\', this)">删除</button>'
           + '</div></td></tr>';
       });
@@ -3611,6 +3675,38 @@ function resetAdminPw(btn) {
         .catch(function(e){ showToast('修改失败：' + e.message, true); });
     },
     { input: true, inputType: 'password', inputPlaceholder: '新密码（至少 6 位）' }
+  );
+}
+
+function renameUser(username, btn, allowNameChange) {
+  showConfirm(
+    '给 ' + username + ' 改用户名',
+    '只改用户名：登录密码、HY2 密码、VLESS 链接、订阅地址、流量上限与用量记录都不变；HY2 链接里的用户名会跟着变。改名后该用户需用新用户名重新登录。',
+    btn,
+    function(v){
+      if (!v) return;
+      var name = (v[0] || '').trim();
+      var allow = !!v[1];
+      if (!name) { showToast('新用户名不能为空。', true); return; }
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_username: name, allow_name_change: allow }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
+          if (ME && username === ME.username) {
+            // 改的是自己的名字：会话已换成新名字，整页刷新一次即可。
+            location.reload();
+            return;
+          }
+          hidePermModal();
+          loadUsers();
+          showToast('已改名：' + username + ' → ' + name + '。该用户需用新用户名重新登录。');
+        })
+        .catch(function(e){ showToast('修改失败：' + e.message, true); });
+    },
+    { inputs: [
+      { label: '新用户名', type: 'text', placeholder: '2-32 个字符，中文/字母/数字/下划线/横线' },
+      { label: '允许该用户自行修改用户名', type: 'checkbox', value: allowNameChange !== false },
+    ] }
   );
 }
 
