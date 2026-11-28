@@ -173,7 +173,7 @@ def main():
     users = {
         r["username"]: dict(r)
         for r in conn.execute(
-            "SELECT username, limit_gb, limits_json, disabled_json, enabled,"
+            "SELECT username, role, limit_gb, limits_json, disabled_json, enabled,"
             " disabled_reason, expires_at FROM users"
         )
     }
@@ -236,8 +236,15 @@ def main():
             log("ERROR reading remote %s VLESS stats: %s" % (sid, e))
     # VLESS deltas (reset-read) straight into usage_daily (combined
     # HY2+VLESS, per server). No per-protocol tables.
+    # The sing-box admin inbound carries the fixed role label "admin"
+    # (vless-in name + stats.users), not the panel username: attribute
+    # it to whoever holds role=admin now, so an admin rename does not
+    # drop the admin's VLESS traffic from the counts.
+    admin_username = next((u for u, d in users.items() if d.get("role") == "admin"), None)
     for server, stats in vless_servers.items():
         for username, st in stats.items():
+            if username == "admin" and admin_username:
+                username = admin_username
             if username not in users:
                 continue
             tx = int(st.get("tx", 0))
@@ -261,7 +268,7 @@ def main():
     import time as _time
     now_ts = int(_time.time())
     for username, u in users.items():
-        if username == "admin":
+        if u.get("role") == "admin":
             continue
         try:
             exp = int(u["expires_at"]) if u.get("expires_at") is not None else None
@@ -279,7 +286,7 @@ def main():
     conn.commit()
     server_ids = sorted(set(list(servers.keys()) + ["local"]))
     for username, u in users.items():
-        if username == "admin":
+        if u.get("role") == "admin":
             continue
         try:
             limits = json.loads(u["limits_json"]) if u["limits_json"] else {}
