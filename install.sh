@@ -481,7 +481,7 @@ cat > /etc/sing-box/config.json <<EOF
       "tag": "vless-in",
       "listen": "::",
       "listen_port": $VLESS_PORT,
-      "users": [{ "uuid": "$VLESS_UUID", "flow": "xtls-rprx-vision" }],
+      "users": [{ "uuid": "$VLESS_UUID", "name": "admin", "flow": "xtls-rprx-vision" }],
       "tls": {
         "enabled": true,
         "server_name": "www.apple.com",
