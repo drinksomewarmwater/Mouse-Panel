@@ -648,6 +648,7 @@
       <li>改用户名只改名字：登录密码、HY2 密码、VLESS 链接、订阅地址、流量上限与用量记录都不变；HY2 链接里的用户名会跟着变，改名后需用新用户名重新登录</li>
       <li>修复管理员 VLESS 流量不进按用户统计：vless-in 入站用户加上 name admin，v2ray_api 的 stats.users 名单加上 admin，采集器此后正常统计管理员的 VLESS 用量；此前漏记的无法补回</li>
       <li>修复添加用户失败：alloc_vless_port 用了 random.randint 但漏了 import random，新用户建不出来（一直报 500）；现已补上</li>
+      <li>管理员改名弹窗去掉“允许该用户自行修改用户名”选项；改名与改密码弹窗里的“允许自行修改”勾选改为一点就生效，不用等确定，只改勾选不填新用户名/新密码时点确定直接关掉，不再报“不能为空”</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -1256,6 +1257,13 @@ function showConfirm(title, body, btn, onOk, opts){
         field.appendChild(lab);
         field.appendChild(inp);
       }
+      if (it.onChange) {
+        // A field with onChange applies the moment it is flipped/edited:
+        // the caller saves it at once instead of waiting for 确定.
+        inp.addEventListener('change', function(){
+          it.onChange(inp.type === 'checkbox' ? inp.checked : inp.value, inp);
+        });
+      }
       multiBox.appendChild(field);
     });
     multiBox.classList.remove('hidden');
@@ -1505,14 +1513,14 @@ function showAdminManageModal(btn) {
   var admin = null;
   Object.keys(usersByName).forEach(function (k) { if (usersByName[k].role === 'admin') admin = usersByName[k]; });
   var username = (admin && admin.username) || (ME && ME.username) || 'admin';
-  var u = { username: username, allowNameChange: admin ? admin.allow_name_change !== 0 : true };
+  var u = { username: username };
   permUser = u;
   permSrcBtn = btn;
   document.getElementById('perm-modal-title').textContent = '管理 — ' + username;
   var box = document.getElementById('perm-modal-actions');
   box.innerHTML = '';
   var items = [
-    { label: '修改用户名', fn: function(u, b){ renameUser(u.username, b, u.allowNameChange); } },
+    { label: '修改用户名', fn: function(u, b){ renameUser(u.username, b, null, true); } },
     { label: '修改密码', fn: function(u, b){ resetAdminPw(b); } },
   ];
   items.forEach(function (it) {
@@ -3633,6 +3641,24 @@ function setExpiry(username, curExpiresAt, btn) {
   showExpiryWheel(username, curExpiresAt, btn);
 }
 
+/* A permission toggle inside a dialog applies the moment it is flipped:
+   POST the flag alone (no rename / no new password) and keep the dialog
+   open. On failure the checkbox flips back so the screen never lies. */
+function setUserFlag(username, action, key, value, el) {
+  var body = {};
+  body[key] = value;
+  fetch('/api/admin/users/' + encodeURIComponent(username) + '/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error((res.d && res.d.error) || '保存失败');
+      loadUsers();
+    })
+    .catch(function(e){
+      if (el) el.checked = !value;
+      showToast('保存失败：' + e.message, true);
+    });
+}
+
 function resetPw(username, btn, allowPwChange, curPw) {
   showConfirm(
     '给 ' + username + ' 设置新密码',
@@ -3640,9 +3666,11 @@ function resetPw(username, btn, allowPwChange, curPw) {
     btn,
     function(v){
       if (!v) return;
-      var pw = v[0];
+      var pw = v[0] || '';
       var allow = !!v[1];
-      if ((pw || '').length < 6) { showToast('密码至少 6 位。', true); return; }
+      // 新密码空着 = 只改了下面的勾选（勾选一点就生效），直接关掉。
+      if (!pw) return;
+      if (pw.length < 6) { showToast('密码至少 6 位。', true); return; }
       fetch('/api/admin/users/' + encodeURIComponent(username) + '/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, allow_pw_change: allow }) })
         .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
         .then(function(res){
@@ -3654,7 +3682,8 @@ function resetPw(username, btn, allowPwChange, curPw) {
     },
     { inputs: [
       { label: '新密码', type: 'password', placeholder: '新密码（至少 6 位）' },
-      { label: '允许该用户自行修改密码', type: 'checkbox', value: allowPwChange !== false },
+      { label: '允许该用户自行修改密码', type: 'checkbox', value: allowPwChange !== false,
+        onChange: function(checked, el){ setUserFlag(username, 'password', 'allow_pw_change', checked, el); } },
     ] }
   );
 }
@@ -3679,7 +3708,16 @@ function resetAdminPw(btn) {
   );
 }
 
-function renameUser(username, btn, allowNameChange) {
+/* 管理员没有“允许自行改名”这一项：管理员本来就能在管理里改名，
+   这个开关只对普通用户有意义。普通用户的开关一点就生效，不用等确定。 */
+function renameUser(username, btn, allowNameChange, isAdmin) {
+  var inputs = [
+    { label: '新用户名', type: 'text', placeholder: '2-32 个字符，中文/字母/数字/下划线/横线' },
+  ];
+  if (!isAdmin) {
+    inputs.push({ label: '允许该用户自行修改用户名', type: 'checkbox', value: allowNameChange !== false,
+      onChange: function(checked, el){ setUserFlag(username, 'rename', 'allow_name_change', checked, el); } });
+  }
   showConfirm(
     '给 ' + username + ' 改用户名',
     '只改用户名：登录密码、HY2 密码、VLESS 链接、订阅地址、流量上限与用量记录都不变；HY2 链接里的用户名会跟着变。改名后该用户需用新用户名重新登录。',
@@ -3687,9 +3725,11 @@ function renameUser(username, btn, allowNameChange) {
     function(v){
       if (!v) return;
       var name = (v[0] || '').trim();
-      var allow = !!v[1];
-      if (!name) { showToast('新用户名不能为空。', true); return; }
-      fetch('/api/admin/users/' + encodeURIComponent(username) + '/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_username: name, allow_name_change: allow }) })
+      // 新用户名空着 = 只改了下面的勾选（勾选一点就生效），直接关掉，不报错。
+      if (!name) return;
+      var body = { new_username: name };
+      if (!isAdmin && v.length > 1) body.allow_name_change = !!v[1];
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
         .then(function(res){
           if (!res.ok) throw new Error((res.d && res.d.error) || '修改失败');
@@ -3704,10 +3744,7 @@ function renameUser(username, btn, allowNameChange) {
         })
         .catch(function(e){ showToast('修改失败：' + e.message, true); });
     },
-    { inputs: [
-      { label: '新用户名', type: 'text', placeholder: '2-32 个字符，中文/字母/数字/下划线/横线' },
-      { label: '允许该用户自行修改用户名', type: 'checkbox', value: allowNameChange !== false },
-    ] }
+    { inputs: inputs }
   );
 }
 
