@@ -21,8 +21,9 @@ Per-user VLESS traffic counting (v2ray_api):
 - The experimental.v2ray_api section is maintained here: listen on
   127.0.0.1:10085, stats.users = the enabled usernames. Any other
   experimental settings already in the config are preserved.
-- The admin inbound (vless-in) is never added to stats.users, so the
-  admin's VLESS traffic is not counted per user (admin is unlimited).
+- The admin inbound (vless-in) is included in stats.users (as "admin"),
+  so the admin's VLESS traffic is counted per user. The admin has no
+  per-user limit, so counting it never triggers limit enforcement.
 - A reload resets the in-memory v2ray counters; the poller treats a
   lower reading as a reset (counts only the new value, never negative).
 
@@ -93,7 +94,7 @@ def main():
         exp = copy.deepcopy(cfg.get("experimental") or {})
         exp["v2ray_api"] = {
             "listen": "127.0.0.1:10085",
-            "stats": {"enabled": True, "users": sorted(users)},
+            "stats": {"enabled": True, "users": sorted(set(users) | {"admin"})},
         }
         new_cfg["experimental"] = exp
         tmp = CFG + ".tmp-sync"
