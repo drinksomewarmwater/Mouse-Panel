@@ -360,6 +360,7 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 **修复**
 
 - 修复管理员 VLESS 流量不进按用户统计：vless-in 入站用户加上 name admin，同时 v2ray_api 的 stats.users 名单加上 admin，采集器此后正常统计管理员的 VLESS 用量；此前漏记的无法补回。管理员无上限，不会被限停。
+- 修复添加用户失败：alloc_vless_port 用了 random.randint 但漏了 import random，新用户建不出来（一直报 500）；现已补上。
 
 ### V1.1.7 (2026-11-26)
 
