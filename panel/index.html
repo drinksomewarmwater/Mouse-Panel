@@ -343,9 +343,9 @@
       <div><div class="k">本月剩余</div><div class="v" id="u-left-d1">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
-      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-d1">…</div></div>
       <div><div class="k">今日入站</div><div class="v" id="u-today-rx-d1">…</div></div>
       <div><div class="k">今日出站</div><div class="v" id="u-today-tx-d1">…</div></div>
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-d1">…</div></div>
     </div>
     <div class="hint" id="u-note-d1">…</div>
     <div class="bar"><i id="u-bar-d1" style="width:0%"></i></div>
@@ -395,9 +395,9 @@
       <div><div class="k">本月剩余</div><div class="v" id="u-left-local">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
-      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-local">…</div></div>
       <div><div class="k">今日入站</div><div class="v" id="u-today-rx-local">…</div></div>
       <div><div class="k">今日出站</div><div class="v" id="u-today-tx-local">…</div></div>
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="u-today-local">…</div></div>
     </div>
     <div class="hint" id="u-note-local">…</div>
     <div class="bar"><i id="u-bar-local" style="width:0%"></i></div>
@@ -445,14 +445,14 @@
     <h2>流量使用 <span class="badge" id="traffic-badge">…</span></h2>
     <div class="stat">
       <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t-total">…</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t-quota">…</div></div>
       <div><div class="k">入站</div><div class="v" id="t-rx">…</div></div>
       <div><div class="k">出站</div><div class="v" id="t-tx">…</div></div>
-      <div><div class="k">月度额度</div><div class="v" id="t-quota">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
-      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d-total">…</div></div>
       <div><div class="k">今日入站</div><div class="v" id="d-rx">…</div></div>
       <div><div class="k">今日出站</div><div class="v" id="d-tx">…</div></div>
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d-total">…</div></div>
     </div>
     <div class="hint" id="d-note">…</div>
     <div class="bar"><i id="t-bar" style="width:0%"></i></div>
@@ -500,14 +500,14 @@
     <h2>流量使用 <span class="badge" id="traffic1-badge">…</span></h2>
     <div class="stat">
       <div><div class="k">本月合计（入站+出站）</div><div class="v" id="t1-total">…</div></div>
+      <div><div class="k">月度额度</div><div class="v" id="t1-quota">…</div></div>
       <div><div class="k">入站</div><div class="v" id="t1-rx">…</div></div>
       <div><div class="k">出站</div><div class="v" id="t1-tx">…</div></div>
-      <div><div class="k">月度额度</div><div class="v" id="t1-quota">…</div></div>
     </div>
     <div class="stat" style="margin-top:12px">
-      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d1-total">…</div></div>
       <div><div class="k">今日入站</div><div class="v" id="d1-rx">…</div></div>
       <div><div class="k">今日出站</div><div class="v" id="d1-tx">…</div></div>
+      <div><div class="k">今日使用（入站+出站）</div><div class="v" id="d1-total">…</div></div>
     </div>
     <div class="hint" id="d1-note">…</div>
     <div class="bar"><i id="t1-bar" style="width:0%"></i></div>
@@ -640,11 +640,10 @@
 
 <div class="confirm-modal" id="version-modal">
   <div class="confirm-modal-card" id="version-modal-card" style="width:440px;">
-    <div class="confirm-modal-title" id="version-modal-title">V1.1.7 更新日志</div>
+    <div class="confirm-modal-title" id="version-modal-title">V1.1.8 更新日志</div>
     <ul class="version-list">
-      <li>订阅拉取时返回 Subscription-Userinfo 响应头（upload/download/total/expire），Clash / OpenClash / ShadowRocket 导入订阅后可在订阅条目上看到本月已用、总量与到期时间：已用是该用户本月在两台服务器上的用量合计，总量按每台服务器取用户上限、没设上限的取该台的月额度（管理员无每人上限，总量为两台月额度之和），到期时间取账号的到期设置、永久账号不带该字段；数值全部按面板自身的配置与统计走，不写死</li>
-      <li>用户页一键复制订阅链接：普通用户登录后在“我的流量”卡片里也能一键复制自己的订阅链接，与管理员的复制订阅同一个链接（按客户端自适应格式，Clash 导入后可看到剩余流量）；后端只返回登录者自己的链接，账号停用时按钮隐藏</li>
-      <li>每次拉取订阅自动加一个时间戳节点：空白 VLESS 节点，名为拉取时刻的北京时间（YYYY-MM-DD HH:MM:SS），指向 127.0.0.1:1、永不通；只进“👋手动选择”，不进任何 url-test 分组；订阅内容每次都变，OpenClash 手动更新时不再因名称无变化而跳过刷新。空订阅不加</li>
+      <li>流量卡片里今日三项的顺序改为今日入站、今日出站在前，今日使用（入站+出站）放最后；管理员与普通用户页面同步调整</li>
+      <li>管理员流量卡的月度四项顺序改为本月合计、月度额度、入站、出站，额度紧跟合计</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
@@ -756,7 +755,7 @@
 <script>
 var LINKS = null;
 var LINKS1 = null;
-var PANEL_VERSION = "V1.1.7"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
+var PANEL_VERSION = "V1.1.8"; // 面板版本号：页脚与更新日志弹窗共用。一天只用一个版本号：同一天的多次更新都用当天第一次更新的号（补丁号由助手延续；中间数 V1.2.0 与大版本 V2.0.0 由用户另外说明）
 
 /* ---- background music: playlist with fade in / fade out ----
    Volume moves toward its target in small steps (0.05 per 100ms tick),
