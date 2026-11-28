@@ -1,4 +1,4 @@
-# Mouse Panel 🐹 V1.1.7
+# Mouse Panel 🐹 V1.1.8
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-green.svg) ![Hysteria](https://img.shields.io/badge/Hysteria-v2.x-orange.svg)
 
@@ -347,6 +347,13 @@ Python 依赖：bcrypt（pyca，面板登录密码哈希，Apache-2.0）、grpci
 ## 更新日志
 
 与 `CHANGELOG.md` 同步维护（内容相同，只记功能层面的变化）。
+
+### V1.1.8 (2026-11-28)
+
+**变更**
+
+- 流量卡片里今日三项的顺序改为今日入站、今日出站在前，今日使用（入站+出站）放最后；管理员与普通用户页面同步调整。
+- 管理员流量卡的月度四项顺序改为本月合计、月度额度、入站、出站，额度紧跟合计。
 
 ### V1.1.7 (2026-11-26)
 
