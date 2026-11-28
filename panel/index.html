@@ -644,6 +644,7 @@
     <ul class="version-list">
       <li>流量卡片里今日三项的顺序改为今日入站、今日出站在前，今日使用（入站+出站）放最后；管理员与普通用户页面同步调整</li>
       <li>管理员流量卡的月度四项顺序改为本月合计、月度额度、入站、出站，额度紧跟合计</li>
+      <li>修复管理员 VLESS 流量不进按用户统计：vless-in 入站用户加上 name admin，v2ray_api 的 stats.users 名单加上 admin，采集器此后正常统计管理员的 VLESS 用量；此前漏记的无法补回</li>
     </ul>
     <div style="margin-bottom:18px;"><a class="version-link" href="https://github.com/drinksomewarmwater/Mouse-Panel" target="_blank" rel="noopener">GitHub 项目：drinksomewarmwater/Mouse-Panel ↗</a></div>
     <div class="confirm-modal-btns">
